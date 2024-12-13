@@ -1,0 +1,13 @@
+astroquery
+
+# Data Science
+matplotlib
+seaborn
+pandas
+scipy
+scikit-learn
+xgboost
+
+# Jupyter
+jupyterlab
+notebook
