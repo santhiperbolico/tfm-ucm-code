@@ -8,6 +8,7 @@ from astroquery.gaia import Gaia
 from astroquery.simbad import Simbad
 from astroquery.heasarc import Heasarc
 from astropy.table.table import Table
+from astroquery.esa.xmm_newton import XMMNewton
 
 HEASARC_COLUMNS = [
     'NAME','ALT_NAME','RA','DEC','VMAG','BV_COLOR','HELIO_DISTANCE',
