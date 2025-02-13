@@ -29,3 +29,14 @@ def convert_mas_yr_in_km_s(
     factor = ARCS_RAD * PC_KM / YR_S
     vt_data = factor * (pm_data / 1000) * distance_pc
     return vt_data
+
+
+def get_l_b_velocities(pmra, pmdec, l, b):
+    """
+    Función que calcula las componentes l y b de la velocidad en km/s
+    """
+
+    pm_l = np.cos(l) * np.cos(b) * pmra + np.sin(l) * np.cos(b) * pmdec
+    pm_b = -np.sin(b) * pmra + np.cos(l) * np.sin(b) * pmdec
+
+    return pm_l, pm_b

@@ -11,8 +11,7 @@ from astropy.table.table import Table
 from astroquery.esa.xmm_newton import XMMNewton
 
 HEASARC_COLUMNS = [
-    'NAME','ALT_NAME','RA','DEC','VMAG','BV_COLOR','HELIO_DISTANCE',
-    'METALLICITY','CORE_RADIUS', 'HALF_LIGHT_RADIUS']
+    'NAME','RA','DEC','CORE_RADIUS', 'HALF_LIGHT_RADIUS', 'CENTRAL_CONCENTRATION']
 
 def get_skycoords(
         result: Table,
