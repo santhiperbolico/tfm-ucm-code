@@ -1,4 +1,5 @@
 astroquery
+attr
 
 # Data Science
 matplotlib
@@ -7,7 +8,3 @@ pandas
 scipy
 scikit-learn
 xgboost
-
-# Jupyter
-jupyterlab
-notebook

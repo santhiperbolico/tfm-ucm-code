@@ -1,4 +1,6 @@
 import numpy as np
+from astropy import units as u
+from astropy.coordinates import SkyCoord, Galactic
 
 
 ARCS_RAD = np.pi / (180 * 3600)
@@ -31,12 +33,24 @@ def convert_mas_yr_in_km_s(
     return vt_data
 
 
-def get_l_b_velocities(pmra, pmdec, l, b):
+def get_l_b_velocities(
+        ra: np.ndarray[float],
+        dec: np.ndarray[float],
+        pm_ra_cosdec: np.ndarray[float],
+        pm_dec: np.ndarray[float],
+):
     """
     Función que calcula las componentes l y b de la velocidad en km/s
     """
 
-    pm_l = np.cos(l) * np.cos(b) * pmra + np.sin(l) * np.cos(b) * pmdec
-    pm_b = -np.sin(b) * pmra + np.cos(l) * np.sin(b) * pmdec
+    velocity_coord = SkyCoord(
+        ra=ra * u.mas,
+        dec=dec * u.mas,
+        pm_ra_cosdec=pm_ra_cosdec* u.mas / u.yr,
+        pm_dec=pm_dec * u.mas / u.yr,
+        frame="icrs"
+    )
 
-    return pm_l, pm_b
+    velocity_coord_gal = velocity_coord.transform_to(Galactic())
+
+    return velocity_coord_gal.pm_l_cosb.value, velocity_coord_gal.pm_b.value
