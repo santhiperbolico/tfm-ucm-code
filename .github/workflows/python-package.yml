@@ -1,0 +1,34 @@
+name: pre-commit and pytest
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+  push:
+    branches:
+      - main
+      - develop
+jobs:
+  pre-commit:
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+    - name: Install pre-commit
+      run: |
+        pip install pre-commit
+    - name: Install requirements
+      run: |
+        pip install -r src/requirements-dev.txt
+    - name: Install pre-commit-config
+      run: |
+        cp src/.pre-commit-config.yaml .pre-commit-config.yaml && pre-commit install
+    - name: pre-commit execute
+      run: |
+        pre-commit run --all-files
+    - name: pytest execute
+      run: |
+        cd src && pytest
