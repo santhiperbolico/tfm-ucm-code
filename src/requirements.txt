@@ -1,7 +1,5 @@
 astroquery
 attr
-
-# Data Science
 matplotlib
 seaborn
 pandas
