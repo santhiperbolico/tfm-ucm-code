@@ -1,5 +1,6 @@
 astroquery
 attr
+attrs >= 24.2.0
 matplotlib
 seaborn
 pandas
