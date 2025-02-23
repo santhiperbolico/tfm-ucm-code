@@ -8,18 +8,11 @@ import pandas as pd
 from astropy.coordinates import SkyCoord
 from astropy.table.table import Table
 from attr import attrib, attrs
-from catalogs import Catalog, CatalogsType
 
-from high_velocity_stars_detection.gaia_dr3.etls.download_data import (
-    get_object_from_heasarc,
-    get_skycoords,
-)
-from high_velocity_stars_detection.gaia_dr3.etls.stadistics import get_uwe_from_gaia
-from high_velocity_stars_detection.gaia_dr3.etls.utils import (
-    convert_mas_yr_in_km_s,
-    get_l_b_velocities,
-)
-from high_velocity_stars_detection.gaiadr2_ruwe_tools.ruwetools import U0Interpolator
+from high_velocity_stars_detection.etls.catalogs import Catalog, CatalogsType
+from high_velocity_stars_detection.etls.download_data import get_object_from_heasarc, get_skycoords
+from high_velocity_stars_detection.etls.ruwe_tools.dr2.ruwetools import U0Interpolator
+from high_velocity_stars_detection.etls.utils import convert_mas_yr_in_km_s, get_l_b_velocities
 
 
 @attrs
@@ -167,8 +160,6 @@ class Cluster:
         df_r: pd.DataFrame
             Datos copiados con las métricas extra.
         """
-        rwi = U0Interpolator()
-
         df_r = self.data.copy()
         df_r["pmra_kms"] = convert_mas_yr_in_km_s(df_r["parallax"].values, df_r["pmra"].values)
         df_r["pmdec_kms"] = convert_mas_yr_in_km_s(df_r["parallax"].values, df_r["pmdec"].values)
@@ -178,9 +169,10 @@ class Cluster:
             df_r.ra.values, df_r.dec.values, df_r.pmra.values, df_r.pmdec.values
         )
 
+        u0_object = U0Interpolator(n_p=5)
         # Métricas de cualificación de la muestra
-        df_r["uwe"] = get_uwe_from_gaia(df_r, 5)
-        df_r["ruwe"] = df_r["uwe"] / rwi.get_u0(df_r["phot_g_mean_mag"], df_r["bp_rp"])
+        df_r["uwe"] = u0_object.get_uwe_from_gaia(df_r)
+        df_r["ruwe"] = df_r["uwe"] / u0_object.get_u0(df_r["phot_g_mean_mag"], df_r["bp_rp"])
         return df_r
 
     def qualify_data(

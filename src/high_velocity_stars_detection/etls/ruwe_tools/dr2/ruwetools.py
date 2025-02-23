@@ -26,10 +26,11 @@ class U0Interpolator:
     takes care of reading the necessary data and setting up the interpolators.
     """
 
-    def __init__(self):
+    def __init__(self, n_p: int = 5):
         """
         Initialize the class.
         """
+        self.n_p = n_p
 
         ngmagbins = 1741
         ncolorbins = 111
@@ -160,9 +161,8 @@ class U0Interpolator:
         uwe: np.ndarray
             Estadístico uwe para cada fila.
         """
-        n_p = 5
         astrometric_chi2_al = df.astrometric_chi2_al.values
-        astrometric_n_good_obs_al = df.astrometric_n_good_obs_al.values - n_p
+        astrometric_n_good_obs_al = df.astrometric_n_good_obs_al.values - self.n_p
         return np.sqrt(astrometric_chi2_al / astrometric_n_good_obs_al)
 
     def get_ruwe_from_gaia(self, df: pd.DataFrame) -> np.ndarray:

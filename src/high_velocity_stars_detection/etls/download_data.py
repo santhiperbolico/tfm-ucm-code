@@ -1,8 +1,6 @@
 import logging
-from typing import Optional
 
 import astropy.units as u
-import numpy as np
 from astropy.coordinates import SkyCoord
 from astropy.table.table import Table
 from astropy.units import Unit
@@ -140,70 +138,5 @@ def get_object(name: str, radius_arcsec: float = 5.0, timeout: int = 120) -> Tab
     radius = radius_arcsec * u.arcsec
     job = Gaia.cone_search_async(coordinate=coords, radius=radius)
     results = job.get_results()
-    logging.info(f"Se encontraron {len(results)} fuentes en el radio de búsqueda:")
-    return results
-
-
-def get_cluster(
-    name_cluster: str,
-    r_scale: Optional[float] = None,
-    rc_scale: Optional[float] = None,
-    rhl_scale: Optional[float] = None,
-) -> Table:
-    """
-    Función que devuelve los objetos de un cluster extraidos del catálogo GAIA DR3.
-    La función extrae el Rc y las coordenadas del catálogo de GlobularCluster de Heasarc.
-
-    Parameters
-    ----------
-    name_cluster: str
-        Nombre del cluster
-    r_scale: Optional[float], default None
-        Scala del radio en unidiades del campo aparente del cluster.
-    rc_scale: Optional[float], default None
-        Scala del radio en unidiades de Rc (core radius). Por defecto toma 5 arcos de segundo.
-    rhl_scale: Optional[float], default None
-        Scala del radio en unidiades de Rhl (half light radius).
-        Por defecto toma 5 arcos de segundo.
-
-    Returns
-    -------
-    results: Table
-        Tabla con los elementos del cluster en el radios rc_scale * Rc
-
-    """
-    result_cluster = get_object_from_heasarc(name_cluster)
-    coords = get_skycoords(result_cluster, u.deg, u.deg)
-    radius = 5 * u.arcsec
-
-    ra = coords.ra.value  # Ascensión recta (RA) en grados
-    dec = coords.dec.value  # Declinación (Dec) en grados
-
-    if r_scale:
-        radius = (
-            np.power(10, result_cluster["CENTRAL_CONCENTRATION"].value[0])
-            * result_cluster["CORE_RADIUS"].value[0]
-            / 60
-        )
-    if rc_scale:
-        radius = rc_scale * result_cluster["CORE_RADIUS"][0] * u.arcmin
-    if rhl_scale:
-        radius = rhl_scale * result_cluster["HALF_LIGHT_RADIUS"][0] * u.arcmin
-
-    job = Gaia.launch_job_async(
-        f"""
-    SELECT * FROM gaiadr3.gaia_source
-    WHERE 1=CONTAINS(
-        POINT('ICRS', ra, dec),
-        CIRCLE('ICRS', {ra}, {dec}, {radius * 1})
-    )
-    """,
-        dump_to_file=True,
-        output_format="votable",
-        output_file="DR3_GCngc104_r.vot",
-    )
-    logging.info(job)
-    results = job.get_results()
-    results = results.to_pandas()
     logging.info(f"Se encontraron {len(results)} fuentes en el radio de búsqueda:")
     return results

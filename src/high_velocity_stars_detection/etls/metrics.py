@@ -31,13 +31,34 @@ def convert_mas_yr_in_km_s(parallax_data: np.ndarray, pm_data: np.ndarray) -> np
 
 
 def get_l_b_velocities(
-    ra: np.ndarray[float],
-    dec: np.ndarray[float],
-    pm_ra_cosdec: np.ndarray[float],
-    pm_dec: np.ndarray[float],
-):
+    ra: np.ndarray,
+    dec: np.ndarray,
+    pm_ra_cosdec: np.ndarray,
+    pm_dec: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
     """
-    Función que calcula las componentes l y b de la velocidad en km/s
+    Función que calcula las componentes l y b de la velocidad en mas/yr
+
+    Parameters
+    ----------
+    ra: np.ndarray
+        Array con la ascensión recta en grados.
+    dec: np.ndarray
+        Array con la declinación en grados.
+    pm_ra_cosdec: np.ndarray
+        Array con el movimiento propio en ascensión recta por el coseno de la declinación.
+        Las unidades son mas/yr
+    pm_dec: np.ndarray
+        Array con el movimiento propio en la declinación. Las unidades son mas/yr.
+
+    Returns
+    -------
+    pm_l_cosb: np.ndarray
+        Array con el movimiento propio en longitud por el coseno de la latitud.
+        Las unidades son mas/yr
+    pm_dec: np.ndarray
+        Array con el movimiento propio en la latitud. Las unidades son mas/yr.
+
     """
 
     velocity_coord = SkyCoord(
