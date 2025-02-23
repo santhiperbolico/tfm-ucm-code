@@ -1,0 +1,10 @@
+astroquery
+attr
+
+# Data Science
+matplotlib
+seaborn
+pandas
+scipy
+scikit-learn
+xgboost

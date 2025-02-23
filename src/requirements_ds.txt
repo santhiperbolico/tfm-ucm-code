@@ -1,0 +1,5 @@
+-r requirements.txt
+
+# Jupyter
+jupyterlab
+notebook
