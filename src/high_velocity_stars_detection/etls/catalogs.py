@@ -117,7 +117,8 @@ class Catalog:
 
         Parameters
         ----------
-        file_catalog
+        file_catalog: str
+            Nombre del archivo .vot con los dato sdel catálogo.
 
         Returns
         -------
