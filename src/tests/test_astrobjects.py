@@ -46,9 +46,12 @@ def test_astroobject_get_object(astro_object, cluster):
 @pytest.mark.parametrize("radius_type", ["core_radius", "half_light_radius", "vision_fold_radius"])
 @patch("high_velocity_stars_detection.etls.catalogs.Gaia", autospec=True)
 @patch("astroquery.utils.tap.model.job.Job", autospec=True)
+@patch("high_velocity_stars_detection.etls.download_data.Heasarc", autospec=True)
 def test_astroobject_download_object(
-    job_class_mock, gaia_class_mock, radius_type, astro_object, cluster
+    heasarc_class_mock, job_class_mock, gaia_class_mock, radius_type, astro_object, cluster
 ):
+    heasarc_mock = heasarc_class_mock.return_value
+    heasarc_mock.query_object.return_value = Table.read("tests/test_data/result_heasarc.fits")
     job_mock = job_class_mock.return_value
     job_mock.get_results.return_value = Table.read("tests/test_data/result_gaia.fits")
     gaia_class_mock.launch_job_async.return_value = job_mock

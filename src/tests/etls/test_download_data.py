@@ -45,10 +45,10 @@ def test_get_object_from_simbad(simbad_class_mock, cluster):
     assert result["RA"][0] == "00 24 05.359"
 
 
-@patch("high_velocity_stars_detection.etls.download_data.Heasarc", autospec=True)
-def test_get_skycoords(heasarc_class_mock, cluster):
-    heasarc_mock = heasarc_class_mock.return_value
-    heasarc_mock.query_object.return_value = Table.read("tests/test_data/result_heasarc.fits")
+@patch("high_velocity_stars_detection.etls.download_data.Simbad", autospec=True)
+def test_get_skycoords(simbad_class_mock, cluster):
+    simbad_mock = simbad_class_mock.return_value
+    simbad_mock.query_object.return_value = Table.read("tests/test_data/result_simbad.fits")
     result = get_object_from_simbad(cluster.name)
     coords = get_skycoords(result, u.deg, u.deg)
     assert isinstance(coords, SkyCoord)
