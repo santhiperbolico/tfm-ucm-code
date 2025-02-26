@@ -365,7 +365,7 @@ class AstroObjectData:
 
         """
         filename = filepath.split("/")[-1].replace(".zip", "")
-        data_name = filename.split("_")[1]
+        data_name = filename.split("_")[0]
         radius_scale = int(filename.split("_")[-1].replace("r", "").split(".")[0])
         with ZipFile(filepath, "r") as zip_instance:
             if zip_instance.testzip() is not None:
@@ -422,7 +422,7 @@ class AstroObjectData:
 
 @attrs
 class AstroObjectProject:
-    astro_object = attrib(type=AstroObjectData, init=True)
+    astro_object = attrib(type=AstroObject, init=True)
     path = attrib(type=str, init=True)
     data_list = attrib(type=list[AstroObjectData], init=True)
     xsources = attrib(type=pd.DataFrame, init=True)
@@ -481,7 +481,7 @@ class AstroObjectProject:
         if path is None:
             path = self.path
 
-        path_project = os.path.join(path, self.name)
+        path_project = os.path.join(path, self.astro_object.name)
         if not os.path.exists(path_project):
             os.mkdir(path_project)
 

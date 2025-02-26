@@ -130,18 +130,24 @@ def test_astroobject_data_save_load_from_zip(table_class_mock, astro_object):
 
 
 @patch("hyper_velocity_stars_detection.etls.catalogs.Table", autospec=True)
-def test_astroobject_project_save_load_from_zip(table_class_mock, astro_object):
+@patch("hyper_velocity_stars_detection.astrobjects.AstroObject", autospec=True)
+@patch("hyper_velocity_stars_detection.astrobjects.XSource", autospec=True)
+def test_astroobject_project_save_load_from_zip(
+    xsource_class_mock, astro_object_class_mock, table_class_mock, astro_object
+):
+    xsource = pd.read_csv("tests/test_data/xsource.csv")
     table_class_mock.read.return_value = Table.read("tests/test_data/result_gaia.fits")
+    astro_object_class_mock.get_object.return_value = astro_object
+    xsource_class_mock.download_results.return_value = xsource
     _ = astro_object.read_object("path_dir", "file.vot")
     data_list = [
         AstroObjectData.load_data_from_object(astro_object, radio_scale=1),
         AstroObjectData.load_data_from_object(astro_object, radio_scale=2),
     ]
     with TemporaryDirectory() as tmp_dir:
-        path = os.path.join(tmp_dir, astro_object.name)
-        project = AstroObjectProject(astro_object.name, tmp_dir, data_list)
+        project = AstroObjectProject(astro_object, tmp_dir, data_list, xsource)
         project.save_project()
-        new_project = AstroObjectProject.load_project(path)
+        new_project = AstroObjectProject.load_project(astro_object.name, tmp_dir)
 
     assert len(new_project.data_list) == 2
-    assert new_project.name == project.name
+    assert new_project.astro_object.name == project.astro_object.name
