@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from high_velocity_stars_detection.etls.metrics import convert_mas_yr_in_km_s, get_l_b_velocities
+from hyper_velocity_stars_detection.etls.metrics import convert_mas_yr_in_km_s, get_l_b_velocities
 
 
 def test_convert_mas_yr_in_km_s():

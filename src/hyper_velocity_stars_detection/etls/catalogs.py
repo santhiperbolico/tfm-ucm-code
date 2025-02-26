@@ -3,6 +3,7 @@ from typing import Optional
 
 import pandas as pd
 from astropy.table import Table
+from astroquery.esa.xmm_newton import XMMNewton
 from astroquery.gaia import Gaia
 from attr import attrib, attrs
 
@@ -12,9 +13,16 @@ class CatalogsType:
     GAIA_DR3 = "gaiadr3"
 
 
+class XSourceType:
+    XMMNEWTON = "XMMNewton"
+
+
 class CatalogsTables:
     GAIA_DR2 = "gaiadr2.gaia_source"
     GAIA_DR3 = "gaiadr3.gaia_source"
+
+
+XSOURCES = {XSourceType.XMMNEWTON: XMMNewton}
 
 
 class CatalogError(Exception):
@@ -61,6 +69,7 @@ class Catalog:
         filter_parallax_min: Optional[float] = None,
         filter_parallax_max: Optional[float] = None,
         filter_parallax_error: Optional[float] = None,
+        row_limit: int = -1,
     ) -> pd.DataFrame:
         """
         Método que descarga los datos del catalogo asociado teniendo en cuenta los parámetros.
@@ -81,24 +90,27 @@ class Catalog:
             Paralaje máximo que buscar.
         filter_parallax_error: Optional[float], default None
             Máximo error en el parale a buscar.
+        row_limit: int, default -1
+            Límite de filas consultadas. Por defecto se extraen todas las filas.
 
         Returns
         -------
         results: pd.DataFrame
             Tabla con los datos del catálogo descargados.
         """
+        Gaia.ROW_LIMIT = row_limit
 
         filter = f"""
         WHERE 1=CONTAINS(
                POINT('ICRS', ra, dec),
-               CIRCLE('ICRS', {ra}, {dec}, {radius * 1})
+               CIRCLE('ICRS', {ra}, {dec}, {radius})
                )
         """
-        if filter_parallax_max:
+        if filter_parallax_max is not None:
             filter = f"{filter} AND parallax < {filter_parallax_max}"
-        if filter_parallax_min:
+        if filter_parallax_min is not None:
             filter = f"{filter} AND parallax > {filter_parallax_min}"
-        if filter_parallax_error:
+        if filter_parallax_error is not None:
             filter = f"{filter} AND parallax_error < {filter_parallax_error}"
 
         query = f"SELECT * FROM {self.catalog_table} {filter}"
@@ -127,4 +139,46 @@ class Catalog:
 
         """
         results = Table.read(file_catalog, format="votable").to_pandas()
+        return results
+
+
+@attrs
+class XSource:
+    @staticmethod
+    def download_results(ra: float, dec: float, radius: float) -> pd.DataFrame:
+        """
+        Método que descarga los datos del catalogo asociado teniendo en cuenta los parámetros.
+
+        Parameters
+        ----------
+        ra: float
+            Ascensión recta en mas.
+        dec: float
+            Declinaje en mas
+        radius: float
+            Radio de búsqueda en grados.
+
+        Returns
+        -------
+        results: pd.DataFrame
+            Tabla con los datos del catálogo descargados.
+        """
+
+        query = f"""
+        SELECT * FROM v_public_observations
+        WHERE 1=CONTAINS(
+            POINT('ICRS', ra, dec),
+            CIRCLE('ICRS', {ra}, {dec}, {radius})
+        )
+        """
+        # Mostrar los resultados
+        discard_cols = [
+            "observation_equatorial_spoint",
+            "observation_fov_scircle",
+            "observation_galactic_spoint",
+        ]
+        query_results = XMMNewton.query_xsa_tap(query)
+        results = query_results[
+            [col for col in query_results.columns if col not in discard_cols]
+        ].to_pandas()
         return results

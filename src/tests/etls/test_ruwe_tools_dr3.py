@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from high_velocity_stars_detection.etls.ruwe_tools.dr3.ruwetools import U0Interpolator
+from hyper_velocity_stars_detection.etls.ruwe_tools.dr3.ruwetools import U0Interpolator
 
 
 @pytest.fixture()

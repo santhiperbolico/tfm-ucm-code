@@ -12,10 +12,13 @@ from astropy.coordinates import SkyCoord
 from astropy.table.table import Table
 from attr import attrib, attrs
 
-from high_velocity_stars_detection.etls.catalogs import Catalog, CatalogsType
-from high_velocity_stars_detection.etls.download_data import get_object_from_heasarc, get_skycoords
-from high_velocity_stars_detection.etls.metrics import convert_mas_yr_in_km_s, get_l_b_velocities
-from high_velocity_stars_detection.etls.ruwe_tools.dr2.ruwetools import U0Interpolator
+from hyper_velocity_stars_detection.etls.catalogs import Catalog, CatalogsType, XSource
+from hyper_velocity_stars_detection.etls.download_data import (
+    get_object_from_heasarc,
+    get_skycoords,
+)
+from hyper_velocity_stars_detection.etls.metrics import convert_mas_yr_in_km_s, get_l_b_velocities
+from hyper_velocity_stars_detection.etls.ruwe_tools.dr2.ruwetools import U0Interpolator
 
 
 class InvalidFileFormat(RuntimeError):
@@ -26,12 +29,49 @@ class InvalidFileFormat(RuntimeError):
     pass
 
 
+def get_radio(coords: Table, radio_scale: float, radius_type: Optional[str] = None) -> float:
+    """
+    Función que devulve el radio asociado a la búsqueda
+    Parameters
+    ----------
+    radio_scale
+    radius_type
+    coords
+
+    Returns
+    -------
+
+    """
+    radius = None
+    if radius_type is None:
+        radius_type = "vision_fold_radius"
+
+    if radius_type == "vision_fold_radius":
+        radius = radio_scale * (
+            np.power(10, coords["CENTRAL_CONCENTRATION"].value[0])
+            * coords["CORE_RADIUS"].value[0]
+            / 60
+        )
+    if radius_type == "core_radius":
+        radius = radio_scale * coords["CORE_RADIUS"][0]
+    if radius_type == "half_light_radius":
+        radius = radio_scale * coords["HALF_LIGHT_RADIUS"][0]
+
+    if radius is None:
+        raise ValueError(
+            'El tipo de radio no es correcto, pruebe con "core_radius", '
+            '"half_light_radius" o "vision_fold_radius"'
+        )
+    return radius
+
+
 @attrs
 class AstroObject:
     name = attrib(init=True, type=str)
     info = attrib(init=True, type=Table)
     coord = attrib(init=True, type=SkyCoord)
     data = attrib(init=False, type=pd.DataFrame)
+    file = attrib(init=False, type=str)
 
     @classmethod
     def get_object(cls, name: str) -> "AstroObject":
@@ -61,6 +101,7 @@ class AstroObject:
         filter_parallax_min: Optional[float] = None,
         filter_parallax_max: Optional[float] = None,
         filter_parallax_error: Optional[float] = None,
+        path: str = ".",
     ) -> pd.DataFrame:
         """
          Método que descarga los datos del objeto astronómico de catalog_name.
@@ -88,35 +129,15 @@ class AstroObject:
         ra = self.coord.ra.value
         dec = self.coord.dec.value
 
-        radius = None
-        if radius_type is None:
-            radius_type = "vision_fold_radius"
-
-        if radius_type == "vision_fold_radius":
-            radius = (
-                np.power(10, self.info["CENTRAL_CONCENTRATION"].value[0])
-                * self.info["CORE_RADIUS"].value[0]
-                / 60
-            )
-        if radius_type == "core_radius":
-            radius = radius_scale * self.info["CORE_RADIUS"][0] * u.arcmin
-        if radius_type == "half_light_radius":
-            radius = radius_scale * self.info["HALF_LIGHT_RADIUS"][0] * u.arcmin
-
-        if radius is None:
-            raise ValueError(
-                'El tipo de radio no es correcto, pruebe con "core_radius", '
-                '"half_light_radius" o "vision_fold_radius"'
-            )
-
+        radius = get_radio(self.info, radius_scale, radius_type)
         catalog = Catalog.get_catalog(catalog_name)
-        r_scale = f"r{radius_scale:.1f}".replace(".", "_")
-        output_file = f"{catalog_name}-{self.name}-{r_scale}.vot"
+        r_scale = f"{radius_scale:.0f}"
+        self.file = os.path.join(path, f"{catalog_name}_{self.name}_r{r_scale}.vot")
         results = catalog.download_results(
             ra=ra,
             dec=dec,
             radius=radius,
-            output_file=output_file,
+            output_file=self.file,
             filter_parallax_min=filter_parallax_min,
             filter_parallax_max=filter_parallax_max,
             filter_parallax_error=filter_parallax_error,
@@ -154,9 +175,10 @@ class AstroObject:
         """
 
         if file_to_read is None:
-            r_scale = f"r{radius_scale:.1f}".replace(".", "_")
-            file_to_read = f"{catalog_name}-{self.name}-{r_scale}.vot"
-        results = Catalog.read_catalog(os.path.join(path, file_to_read))
+            r_scale = f"r{radius_scale:.0f}"
+            file_to_read = f"{catalog_name}_{self.name}_{r_scale}.vot"
+        self.file = os.path.join(path, file_to_read)
+        results = Catalog.read_catalog(self.file)
         self.data = results
         return self.data
 
@@ -268,14 +290,20 @@ class AstroObjectData:
         """
         Método que imprime los tamaños de las muestras asociadas al objeto astronómico.
         """
-        description = f"Muestras seleccionadas del objeto astronómico {self.name}:\n"
-        for item, (key, value) in enumerate(self.data.items()):
+        description = (
+            f"Muestras seleccionadas del objeto astronómico {self.name} "
+            f"con radio {self.radio_scale}:\n"
+        )
+        for key, value in self.data.items():
+            item = int(key.split("_")[-1].replace("c", ""))
             description += f"\t - {key} - {SAMPLE_DESCRIPTION[item]}: {value.shape[0]}.\n"
         return description
 
     @property
     def data_name(self) -> str:
-        "Nombre asociado al conjunto de muestras de los datos asociados."
+        """
+        Nombre asociado al conjunto de muestras de los datos asociados.
+        """
         return f"{self.name}_r_{int(self.radio_scale)}"
 
     @classmethod
@@ -337,14 +365,15 @@ class AstroObjectData:
 
         """
         filename = filepath.split("/")[-1].replace(".zip", "")
-        data_name = filename.split("_")[0]
-        radius_scale = int(filename.split("_")[-1])
+        data_name = filename.split("_")[1]
+        radius_scale = int(filename.split("_")[-1].replace("r", "").split(".")[0])
         with ZipFile(filepath, "r") as zip_instance:
             if zip_instance.testzip() is not None:
                 raise InvalidFileFormat(f"El archivo '{filepath}' no es un archivo zip válido")
             with TemporaryDirectory() as temp_path:
                 zip_instance.extractall(temp_path)
                 data_files = os.listdir(temp_path)
+                data_files.sort()
                 data = {}
                 for file in data_files:
                     file_path = os.path.join(temp_path, file)
@@ -393,11 +422,20 @@ class AstroObjectData:
 
 @attrs
 class AstroObjectProject:
-    name = attrib(type=str, init=True)
+    astro_object = attrib(type=AstroObjectData, init=True)
+    path = attrib(type=str, init=True)
     data_list = attrib(type=list[AstroObjectData], init=True)
+    xsources = attrib(type=pd.DataFrame, init=True)
+
+    def __str__(self) -> str:
+        description = f"Las muestras analizadas de {self.astro_object.name} son:\n"
+        for data in self.data_list:
+            description += str(data) + "\n"
+        description += f"Se han encontrado {self.xsources.shape[0]} fuentes de rayos X.\n"
+        return description
 
     @classmethod
-    def load_project(cls, path: str) -> "AstroObjectProject":
+    def load_project(cls, name: str, path: str) -> "AstroObjectProject":
         """
         Método que carga los datos de las muestras seleccionadas para un proyecto
         asociado a un objeto astronómico.
@@ -413,24 +451,36 @@ class AstroObjectProject:
         object: AstroObjectProject
             Objeto asociado al proyecto.
         """
-        zip_files = os.listdir(path)
+        path_project = os.path.join(path, name)
+        zip_files = [file for file in os.listdir(path_project) if ".zip" == file[-4:]]
+        zip_files.sort()
         data_list = []
-        for file in zip_files:
-            file_path = os.path.join(path, file)
-            data_list.append(AstroObjectData.load_object_from_zip(file_path))
-        name = path.split("/")[-1]
-        return cls(name, data_list)
 
-    def save_project(self, path: str):
+        for file in zip_files:
+            file_path = os.path.join(path_project, file)
+            data_list.append(AstroObjectData.load_object_from_zip(file_path))
+
+        astro_object = AstroObject.get_object(name)
+        ra = astro_object.coord.ra.value
+        dec = astro_object.coord.dec.value
+        radius = get_radio(astro_object.info, 1)
+        xsources = XSource.download_results(ra, dec, radius)
+
+        return cls(astro_object, path, data_list, xsources)
+
+    def save_project(self, path: Optional[str] = None):
         """
         Método que guarda los resultados de un proyecto en el directorio path dentro de la
         carpeta <name>.
 
         Parameters
         ----------
-        path: str
+        path: Optional[str], default None
             Directorio donde se quiere guardar el proyecto
         """
+        if path is None:
+            path = self.path
+
         path_project = os.path.join(path, self.name)
         if not os.path.exists(path_project):
             os.mkdir(path_project)
