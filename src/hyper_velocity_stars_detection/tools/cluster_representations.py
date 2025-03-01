@@ -424,7 +424,7 @@ def cluster_representation_with_hvs(
     )
 
     # Marcar las estrellas seleccionadas (ejemplo: aquellas con ciertas condiciones)
-
+    # TODO: Revisar generación de vectores.
     ax.quiver(
         selected["l"],
         selected["b"],

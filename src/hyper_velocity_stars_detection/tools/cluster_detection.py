@@ -1,13 +1,17 @@
 import logging
+import os
 from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
+from attr import attrs
 from optuna import create_study
 from optuna.trial import Trial
 from sklearn.cluster import DBSCAN, HDBSCAN, KMeans
 from sklearn.mixture import GaussianMixture
 from sklearn.preprocessing import StandardScaler
+
+from hyper_velocity_stars_detection import utils
 
 
 class GaussianMixtureClustering:
@@ -78,13 +82,29 @@ def score_cluster(df: pd.DataFrame, columns: list[str], labels: np.ndarray) -> f
     """
     Función que devuelve al suma de la dispersión de las columnas para cada cluster
     definido en labels
+
+    Parameters
+    ----------
+    df: pd.DataFrame
+        Tabla con las estrellas a clasificar.
+    columns: list[str]
+        Lista de columnas usadas para medir la desviación típica.
+    labels: np.ndarray
+        Etiquetas con la clasificación de las estrellas.
+
+    Returns
+    -------
+    score: float
+        Media de la media de la desviación típica normalizada por columna y cluster.
     """
     unique_lab = np.unique(labels[labels > -1])
-    score = np.zeros(unique_lab.size)
+    std_array = np.zeros((unique_lab.size, len(columns)))
 
     for i, lab in enumerate(unique_lab):
         gc = df[labels == lab]
-        score[i] = gc[columns].describe().loc["std"].sum()
+        std_array[i, :] = gc[columns].std().values
+
+    score = std_array.sum(axis=1)
     return np.median(score)
 
 
@@ -203,6 +223,62 @@ def get_default_params_distribution(method: ClusterMethodsNames) -> ClusterMetho
         raise ValueError(f"No existe el método {method}, prueba con : {list(methods.keys())}")
 
 
+@attrs(auto_attribs=True)
+class ClusteringResults:
+    """
+    Clase que guarda los resultados de la clusterización.
+    """
+
+    df_stars: pd.DataFrame
+    columns: list[str]
+    labels: np.ndarray[int]
+    clustering: ClusterMethods
+
+    _storage = utils.ContainerSerializerZip(
+        serializers={
+            "df_stars": utils.StorageObjectPandasCSV(),
+            "columns": utils.StorageObjectPickle(),
+            "labels": utils.StorageObjectPickle(),
+            "clustering": utils.StorageObjectPickle(),
+        }
+    )
+
+    def save_results(self, path: str):
+        """
+        Método que guarda los reusltados en un archivo zip.
+
+        Parameters
+        ----------
+        path: str
+            Ruta donde se quiere guardar los archivos.
+        """
+        path_name = os.path.join(path, "stars_clustering")
+        container = {
+            "df_stars": self.df_stars,
+            "columns": self.columns,
+            "labels": self.labels,
+            "clustering": self.clustering,
+        }
+        self._storage.save(path_name, container)
+
+    @classmethod
+    def load_results(cls, path_name: str) -> "ClusteringResults":
+        """
+        Método que carga los resultados de la clusterización.
+
+        Parameters
+        ----------
+        path_name: str
+            Ruta donde se quiere guardar
+
+        Returns
+        -------
+
+        """
+        params = cls._storage.load(path_name)
+        return cls(**params)
+
+
 def optimize_clustering(
     df_stars: pd.DataFrame,
     columns: list[str] = DEDAULT_COLS,
@@ -211,7 +287,7 @@ def optimize_clustering(
     n_trials: int = 100,
     method: ClusterMethodsNames = ClusterMethodsNames.DBSCAN_NAME,
     params_to_opt: Optional[dict[str, list[str, float, int, list[Any]]]] = None,
-) -> ClusterMethods:
+) -> ClusteringResults:
     """
     Función que clusteriza los datos del catálogo usando las columnas columns_to_clus
     minimizando la desviación típica intercluster de las columns.
@@ -222,6 +298,10 @@ def optimize_clustering(
         Tabla con las estrellas
     columns: list[str],
         Columnas a calcular la desviación típica.
+    max_cluster: int = 10,
+        Número máximo de clusters.
+    n_trials: int = 100,
+        Número de intentos en la optimización.
     columns_to_clus: list[str]
         Columnas usadas en la clusterización.
     method: str, default dbscan
@@ -231,13 +311,13 @@ def optimize_clustering(
 
     Returns
     -------
-    clustering: ClusterMethods
-        Modelo de clusterización optimizado y entrenado
+    results: ClusteringResults
+        Resultados de la optimización de clusterización
     """
 
     data = StandardScaler().fit_transform(df_stars[columns_to_clus])
     mask_nan = df_stars[columns_to_clus].isna().any(axis=1).values
-    df = df_stars[~mask_nan]
+    df_stars = df_stars[~mask_nan]
     data = data[~mask_nan]
     clustering_class = get_cluster_method(method)
 
@@ -255,7 +335,7 @@ def optimize_clustering(
         n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
         penalty_clusters = 0 if n_clusters_ < max_cluster else n_clusters_
         if len(set(labels[labels > -1])) > 1:
-            return score_cluster(df, columns, labels) + penalty_clusters
+            return score_cluster(df_stars, columns, labels) + penalty_clusters
         return 1e6
 
     study = create_study(direction="minimize")
@@ -270,4 +350,6 @@ def optimize_clustering(
 
     clustering = clustering_class(**best_params)
     clustering.fit(data)
-    return clustering
+
+    results = ClusteringResults(df_stars, columns, clustering.labels_, clustering)
+    return results

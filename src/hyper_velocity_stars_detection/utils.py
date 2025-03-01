@@ -1,125 +1,194 @@
-from typing import Optional
+import os
+import pickle
+import shutil
+from abc import ABC, abstractmethod
+from tempfile import TemporaryDirectory
+from typing import Any, Dict, Mapping, Optional
+from zipfile import ZipFile
 
-import matplotlib.pyplot as plt
 import pandas as pd
-
-COLUMNS = [
-    "Zini",
-    "MH",
-    "logAge",
-    "Mini",
-    "int_IMF",
-    "Mass",
-    "logL",
-    "logTe",
-    "logg",
-    "label",
-    "McoreTP",
-    "C_O",
-    "period0",
-    "period1",
-    "period2",
-    "period3",
-    "period4",
-    "pmode",
-    "Mloss",
-    "tau1m",
-    "X",
-    "Y",
-    "Xc",
-    "Xn",
-    "Xo",
-    "Cexcess",
-    "Z",
-    "mbolmag",
-    "Gmag",
-    "G_BPmag",
-    "G_RPmag",
-]
+from astropy.table import Table
+from attr import attrs
 
 
-def read_isochrone(pathfile_parsec: str) -> pd.DataFrame:
+class InvalidFileFormat(RuntimeError):
     """
-    Función que lee los datos de una isochrona generada por PARSEC usando el catálogo
-    GAIADR3 con all vega Magnitudes.
+    Error que se lanza cuando un archivo no tiene el formato esperado.
+    """
+
+    pass
+
+
+class StorageObject(ABC):
+    @staticmethod
+    @abstractmethod
+    def save(path: str, value: Any) -> None:
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def load(path: str) -> Optional[Any]:
+        pass
+
+
+@attrs(auto_attribs=True)
+class StorageObjectPickle(StorageObject):
+    """
+    Serializador de valores que usa `pickle` como backend.
+    """
+
+    @staticmethod
+    def save(path: str, value: Any) -> None:
+        """
+        Método de guardado del elemento.
+
+        Parameters
+        ----------
+        path: str
+            Ruta completa donde se quiere almacenar el archivo.
+        value: Any
+        """
+        with open(path, "wb") as path_handle:
+            pickle.dump(value, path_handle)
+
+    @staticmethod
+    def load(path: str) -> Optional[Any]:
+        """
+        Método que carga el elemento usando pickle.
+
+        Parameters
+        ----------
+        path: str
+            Ruta del archivo.
+
+        Returns
+        -------
+        object: Any
+            Objeto cargado
+        """
+        with open(path, "rb") as path_handle:
+            return pickle.load(path_handle)
+
+
+@attrs(auto_attribs=True)
+class StorageObjectPandasCSV(StorageObject):
+    """
+    Serializador de dataframes que usa csv como backend.
+    """
+
+    @staticmethod
+    def save(path: str, value: pd.DataFrame) -> None:
+        """
+        Método de guardado del elemento.
+
+        Parameters
+        ----------
+        path: str
+            Ruta completa donde se quiere almacenar el archivo.
+        value: Any
+        """
+        value.to_csv(path + ".csv", index=False)
+
+    @staticmethod
+    def load(path: str) -> pd.DataFrame:
+        """
+        Método que carga el elemento.
+
+        Parameters
+        ----------
+        path: str
+            Ruta del archivo.
+
+        Returns
+        -------
+        object: pd.DataFrame
+            Objeto cargado
+        """
+        return pd.read_csv(path)
+
+
+@attrs(auto_attribs=True)
+class StorageObjectTableVotable(StorageObject):
+    """
+    Serializador de Table de astropy que usa vot como backend.
+    """
+
+    @staticmethod
+    def save(path: str, value: Table) -> None:
+        """
+        Método de guardado del elemento.
+
+        Parameters
+        ----------
+        path: str
+            Ruta completa donde se quiere almacenar el archivo.
+        value: Any
+        """
+        value.write(path + ".vot", format="votable")
+
+    @staticmethod
+    def load(path: str) -> Table:
+        """
+        Método que carga el elemento.
+
+        Parameters
+        ----------
+        path: str
+            Ruta del archivo.
+
+        Returns
+        -------
+        object: Table
+            Objeto cargado
+        """
+        return Table.read(path, format="votable")
+
+
+@attrs(auto_attribs=True, frozen=True)
+class ContainerSerializerZip:
+    """
+    Serializador de contenedor que guarda todos los valores serializados en un archivo zip.
 
     Parameters
     ----------
-    pathfile_parsec: src
-        Ruta del archivo con la isochrona.
-
-    Returns
-    -------
-    df_isc: pd.DataFrame
-        Tabla con los datos de la Isochrona.
-    """
-    # Contar cuántas líneas de encabezado hay
-    with open(pathfile_parsec, "r") as file:
-        lines = file.readlines()
-
-    # Encontrar la línea que contiene los nombres de las columnas
-    for i, line in enumerate(lines):
-        if not line.startswith("#"):
-            header_index = (
-                i - 1
-            )  # La línea anterior a los datos contiene los nombres de las columnas
-            break
-
-    # Cargar el archivo con pandas
-    df_isc = pd.read_csv(
-        pathfile_parsec, delim_whitespace=True, skiprows=header_index, comment="#", names=COLUMNS
-    )
-
-    return df_isc
-
-
-def plot_cmd(
-    df_r: pd.DataFrame,
-    output_pathfile: str,
-    pathfile_parsec: Optional[str] = None,
-    distance_modulus: float = 0,
-    redding: float = 0,
-) -> None:
-    """
-    Función que genera la gráfica con el CMD del catálgo df_r y de la isocrhona
-    asociada si se le indica. El diagrama se genera sobre el color B-R y la magnitud vega
-    G.
-
-    Parameters
-    ----------
-    df_r: pd.DataFrame
-        Catálogo a generar el diagrama color magnitud.
-    output_pathfile: str
-        Nombre de la ruta del archivo donde se quiere guardar.
-    pathfile_parsec: Optional[str], default None
-        Ruta del archivo de la isochrona. Si no se le indica no la pinta.
-    distance_modulus: float, default 0
-        Corrección de la magintud de la isochrona según el módulo de distancia.
-    redding: float, default 0
-        Corrección del color de la isochrona según el enrojecimiento sufrido por el objeto.
+    serializers : Mapping[str, ValueSerializer]
+        La relación "campo <-> serializador" de todos los valores que se serializarán del
+        contenedor.
     """
 
-    fig, ax = plt.subplots(figsize=(15, 6))
-    plt.scatter(x=df_r.bp_rp, y=df_r.phot_g_mean_mag, s=10, c="k", edgecolor="none", alpha=0.5)
-    if pathfile_parsec:
-        df_isc = read_isochrone(pathfile_parsec)
-        plt.scatter(
-            x=df_isc["G_BPmag"] - df_isc["G_RPmag"] + redding,
-            y=df_isc["Gmag"] + distance_modulus,
-            s=10,
-            c="b",
-            edgecolor="none",
-            alpha=0.5,
-        )
+    _serializers: Mapping[str, StorageObject]
 
-    # Etiquetas de los ejes
-    ax.set_xlabel("bp_rp")
-    ax.set_ylabel("phot_g_mean_mag")
+    def save(self, path: str, container: Mapping[str, Any]) -> None:
+        with TemporaryDirectory() as temp_path:
+            for name, serializer in self._serializers.items():
+                temp_file_path = os.path.join(temp_path, name)
+                serializer.save(temp_file_path, container[name])
+            shutil.make_archive(path, "zip", temp_path)
 
-    # Ajustar límites de los ejes si es necesario
-    ax.set_xlim(-0.5, 3.5)
-    ax.set_ylim(0, 30)
-    plt.gca().invert_yaxis()
-    plt.savefig(output_pathfile)
-    # Mostrar la gráfica
-    plt.show()
+    def load(self, path: str) -> Dict[str, Any]:
+        with ZipFile(path, "r") as zip_instance:
+            if zip_instance.testzip() is not None:
+                raise InvalidFileFormat(f"El archivo '{path}' no es un archivo zip válido")
+            with TemporaryDirectory() as temp_path:
+                zip_instance.extractall(temp_path)
+                container = {}
+                for name, serializer in self._serializers.items():
+                    temp_file_path = os.path.join(temp_path, name)
+                    container[name] = serializer.load(temp_file_path)
+        return container
+
+    @staticmethod
+    def load_files(path: str, serializer: StorageObject) -> Dict[str, Any]:
+        with ZipFile(path, "r") as zip_instance:
+            if zip_instance.testzip() is not None:
+                raise InvalidFileFormat(f"El archivo '{path}' no es un archivo zip válido")
+            with TemporaryDirectory() as temp_path:
+                zip_instance.extractall(temp_path)
+                data_files = os.listdir(temp_path)
+                data_files.sort()
+                container = {}
+                for file in data_files:
+                    file_path = os.path.join(temp_path, file)
+                    name = file.split("/")[-1].split(".")[0]
+                    container[name] = serializer.load(file_path)
+        return container

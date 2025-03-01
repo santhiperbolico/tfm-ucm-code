@@ -1,9 +1,6 @@
 import logging
 import os
-import shutil
-from tempfile import TemporaryDirectory
 from typing import Optional
-from zipfile import ZipFile
 
 import astropy.units as u
 import numpy as np
@@ -19,6 +16,7 @@ from hyper_velocity_stars_detection.etls.download_data import (
 )
 from hyper_velocity_stars_detection.etls.metrics import convert_mas_yr_in_km_s, get_l_b_velocities
 from hyper_velocity_stars_detection.etls.ruwe_tools.dr2.ruwetools import U0Interpolator
+from hyper_velocity_stars_detection.utils import ContainerSerializerZip, StorageObjectPandasCSV
 
 
 class InvalidFileFormat(RuntimeError):
@@ -367,19 +365,22 @@ class AstroObjectData:
         filename = filepath.split("/")[-1].replace(".zip", "")
         data_name = filename.split("_")[0]
         radius_scale = int(filename.split("_")[-1].replace("r", "").split(".")[0])
-        with ZipFile(filepath, "r") as zip_instance:
-            if zip_instance.testzip() is not None:
-                raise InvalidFileFormat(f"El archivo '{filepath}' no es un archivo zip válido")
-            with TemporaryDirectory() as temp_path:
-                zip_instance.extractall(temp_path)
-                data_files = os.listdir(temp_path)
-                data_files.sort()
-                data = {}
-                for file in data_files:
-                    file_path = os.path.join(temp_path, file)
-                    name = file.split("/")[-1].replace(".csv", "")
-                    data[name] = pd.read_csv(file_path)
+        data = ContainerSerializerZip.load_files(filepath, StorageObjectPandasCSV())
         return cls(data_name, radius_scale, data)
+
+    def save_data(self, path: str) -> None:
+        """
+        Método que guarda las muestras del catálogo en un archivo zip.
+
+        Parameters
+        ----------
+        path: str
+            Ruta donde se va a guardar las muestras del catálogo.
+        """
+        path_name = os.path.join(path, self.data_name)
+        serielizer = [StorageObjectPandasCSV] * len(self.data)
+        container = ContainerSerializerZip(dict(zip(self.data.keys(), serielizer)))
+        container.save(path_name, self.data)
 
     def get_data(self, g_name: str) -> pd.DataFrame:
         """
@@ -402,22 +403,6 @@ class AstroObjectData:
                 f"El catalogo de los datos {g_name} es erroneo. "
                 f"Prueba con : {list(self.data.keys())}"
             )
-
-    def save_data(self, path: str) -> None:
-        """
-        Método que guarda las muestras del catálogo en un archivo zip.
-
-        Parameters
-        ----------
-        path: str
-            Ruta donde se va a guardar las muestras del catálogo.
-        """
-        path_name = os.path.join(path, self.data_name)
-        with TemporaryDirectory() as temp_path:
-            for key, value in self.data.items():
-                path_data = os.path.join(temp_path, f"{key}.csv")
-                value.to_csv(path_data, index=False)
-            shutil.make_archive(path_name, "zip", temp_path)
 
 
 @attrs

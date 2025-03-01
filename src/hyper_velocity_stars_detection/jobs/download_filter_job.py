@@ -150,7 +150,7 @@ if __name__ == "__main__":
     root = logging.getLogger()
     root.setLevel(os.environ.get("LOGLEVEL", "INFO"))
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] [%(asctime)s] %(message)s")
-    for cluster in SELECTED_CLUSTERS[2:]:
+    for cluster in SELECTED_CLUSTERS:
         download_data(
             cluster_name=cluster.name,
             read_from_cache=True,

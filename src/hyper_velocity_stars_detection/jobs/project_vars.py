@@ -13,7 +13,8 @@ PATH = "../data"
 PM_KMS_MIN = 50
 
 SELECTED_CLUSTERS = [
-    Cluster("ngc 104", 6, 1),
-    Cluster("ngc 5139", 6, 1),
-    Cluster("ngc 6121", 6, 1),
+    # Cluster("ngc 104", 6, 1),
+    # Cluster("ngc 5139", 6, 1),
+    # Cluster("ngc 6121", 6, 1),
+    Cluster("m 49", 6, 1)
 ]
