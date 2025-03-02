@@ -16,6 +16,7 @@ class DataTest:
 
 @pytest.fixture
 def data_labels() -> DataTest:
+    np.random.seed(1234)
     mean_cluster = np.array([[5.1, -2.1, 0.20], [3.1, 2.0, 0.10], [1.1, -7.0, 0.40]])
     std_cluster = np.array(
         [
