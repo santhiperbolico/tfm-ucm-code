@@ -13,13 +13,16 @@ from hyper_velocity_stars_detection.data_storage import (
     ContainerSerializerZip,
     StorageObjectPandasCSV,
 )
-from hyper_velocity_stars_detection.etls.catalogs import Catalog, CatalogsType, XSource
-from hyper_velocity_stars_detection.etls.download_data import (
+from hyper_velocity_stars_detection.sources.catalogs import Catalog, CatalogsType, XSource
+from hyper_velocity_stars_detection.sources.download_data import (
     get_object_from_heasarc,
     get_skycoords,
 )
-from hyper_velocity_stars_detection.etls.metrics import convert_mas_yr_in_km_s, get_l_b_velocities
-from hyper_velocity_stars_detection.etls.ruwe_tools.dr2.ruwetools import U0Interpolator
+from hyper_velocity_stars_detection.sources.metrics import (
+    convert_mas_yr_in_km_s,
+    get_l_b_velocities,
+)
+from hyper_velocity_stars_detection.sources.ruwe_tools.dr2.ruwetools import U0Interpolator
 from hyper_velocity_stars_detection.tools.cluster_detection import (
     DEFAULT_COLS,
     DEFAULT_COLS_CLUS,

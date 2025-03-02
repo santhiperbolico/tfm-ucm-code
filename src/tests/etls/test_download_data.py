@@ -6,7 +6,7 @@ from astropy.coordinates import SkyCoord
 from astropy.table.table import Table
 from attr import attrs
 
-from hyper_velocity_stars_detection.etls.download_data import (
+from hyper_velocity_stars_detection.sources.download_data import (
     get_object_from_heasarc,
     get_object_from_simbad,
     get_skycoords,
@@ -25,7 +25,7 @@ def cluster():
     return GlobularCluster("ngc 104", 6.02363, -72.08128)
 
 
-@patch("hyper_velocity_stars_detection.etls.download_data.Heasarc", autospec=True)
+@patch("hyper_velocity_stars_detection.sources.download_data.Heasarc", autospec=True)
 def test_get_object_from_heasarc(heasarc_class_mock, cluster):
     heasarc_mock = heasarc_class_mock.return_value
     heasarc_mock.query_object.return_value = Table.read("tests/test_data/result_heasarc.fits")
@@ -35,7 +35,7 @@ def test_get_object_from_heasarc(heasarc_class_mock, cluster):
     assert result["DEC"] == pytest.approx(cluster.dec, abs=1e-3)
 
 
-@patch("hyper_velocity_stars_detection.etls.download_data.Simbad", autospec=True)
+@patch("hyper_velocity_stars_detection.sources.download_data.Simbad", autospec=True)
 def test_get_object_from_simbad(simbad_class_mock, cluster):
     simbad_mock = simbad_class_mock.return_value
     simbad_mock.query_object.return_value = Table.read("tests/test_data/result_simbad.fits")
@@ -45,7 +45,7 @@ def test_get_object_from_simbad(simbad_class_mock, cluster):
     assert result["RA"][0] == "00 24 05.359"
 
 
-@patch("hyper_velocity_stars_detection.etls.download_data.Simbad", autospec=True)
+@patch("hyper_velocity_stars_detection.sources.download_data.Simbad", autospec=True)
 def test_get_skycoords(simbad_class_mock, cluster):
     simbad_mock = simbad_class_mock.return_value
     simbad_mock.query_object.return_value = Table.read("tests/test_data/result_simbad.fits")

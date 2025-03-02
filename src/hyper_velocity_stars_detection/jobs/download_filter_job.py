@@ -10,8 +10,8 @@ from hyper_velocity_stars_detection.astrobjects import (
     AstroObjectData,
     AstroObjectProject,
 )
-from hyper_velocity_stars_detection.etls.catalogs import CatalogsType
 from hyper_velocity_stars_detection.jobs.project_vars import PATH, PM_KMS_MIN, SELECTED_CLUSTERS
+from hyper_velocity_stars_detection.sources.catalogs import CatalogsType
 
 
 def download_cluster(
