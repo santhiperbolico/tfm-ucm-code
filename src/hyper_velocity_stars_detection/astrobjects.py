@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Optional
+from typing import Any, Optional
 
 import astropy.units as u
 import numpy as np
@@ -9,6 +9,10 @@ from astropy.coordinates import SkyCoord
 from astropy.table.table import Table
 from attr import attrib, attrs
 
+from hyper_velocity_stars_detection.data_storage import (
+    ContainerSerializerZip,
+    StorageObjectPandasCSV,
+)
 from hyper_velocity_stars_detection.etls.catalogs import Catalog, CatalogsType, XSource
 from hyper_velocity_stars_detection.etls.download_data import (
     get_object_from_heasarc,
@@ -16,7 +20,13 @@ from hyper_velocity_stars_detection.etls.download_data import (
 )
 from hyper_velocity_stars_detection.etls.metrics import convert_mas_yr_in_km_s, get_l_b_velocities
 from hyper_velocity_stars_detection.etls.ruwe_tools.dr2.ruwetools import U0Interpolator
-from hyper_velocity_stars_detection.utils import ContainerSerializerZip, StorageObjectPandasCSV
+from hyper_velocity_stars_detection.tools.cluster_detection import (
+    DEFAULT_COLS,
+    DEFAULT_COLS_CLUS,
+    ClusteringResults,
+    ClusterMethodsNames,
+    optimize_clustering,
+)
 
 
 class InvalidFileFormat(RuntimeError):
@@ -118,6 +128,8 @@ class AstroObject:
              Paralaje máximo que buscar.
          filter_parallax_error: Optional[float], default None
              Máximo error en el parale a buscar.
+         path: str, default "."
+            Ruta donde se quiere guardar el archivo
 
         Returns
          -------
@@ -345,7 +357,7 @@ class AstroObjectData:
         return cls(astro_object.name, radio_scale, data)
 
     @classmethod
-    def load_object_from_zip(cls, filepath: str) -> "AstroObjectData":
+    def load(cls, filepath: str) -> "AstroObjectData":
         """
         Método de clase que lee los datos desde un archivo zip dado.
 
@@ -368,7 +380,7 @@ class AstroObjectData:
         data = ContainerSerializerZip.load_files(filepath, StorageObjectPandasCSV())
         return cls(data_name, radius_scale, data)
 
-    def save_data(self, path: str) -> None:
+    def save(self, path: str) -> None:
         """
         Método que guarda las muestras del catálogo en un archivo zip.
 
@@ -410,13 +422,16 @@ class AstroObjectProject:
     astro_object = attrib(type=AstroObject, init=True)
     path = attrib(type=str, init=True)
     data_list = attrib(type=list[AstroObjectData], init=True)
-    xsources = attrib(type=pd.DataFrame, init=True)
+    xsource = attrib(type=pd.DataFrame, init=True)
+    clustering_results = attrib(type=ClusteringResults, init=True, default=None)
 
     def __str__(self) -> str:
         description = f"Las muestras analizadas de {self.astro_object.name} son:\n"
         for data in self.data_list:
             description += str(data) + "\n"
-        description += f"Se han encontrado {self.xsources.shape[0]} fuentes de rayos X.\n"
+        description += f"Se han encontrado {self.xsource.shape[0]} fuentes de rayos X.\n"
+        if isinstance(self.clustering_results, ClusteringResults):
+            description += str(self.clustering_results)
         return description
 
     @classmethod
@@ -437,21 +452,32 @@ class AstroObjectProject:
             Objeto asociado al proyecto.
         """
         path_project = os.path.join(path, name)
-        zip_files = [file for file in os.listdir(path_project) if ".zip" == file[-4:]]
+        zip_files = [
+            file for file in os.listdir(path_project) if ".zip" == file[-4:] and name in file
+        ]
         zip_files.sort()
         data_list = []
 
         for file in zip_files:
             file_path = os.path.join(path_project, file)
-            data_list.append(AstroObjectData.load_object_from_zip(file_path))
+            data_list.append(AstroObjectData.load(file_path))
 
         astro_object = AstroObject.get_object(name)
         ra = astro_object.coord.ra.value
         dec = astro_object.coord.dec.value
         radius = get_radio(astro_object.info, 1)
-        xsources = XSource.download_results(ra, dec, radius)
+        try:
+            xsource = XSource.load(path_project)
+        except (FileNotFoundError, IsADirectoryError):
+            logging.info("No se ha encontrado fuentes de rayos X, se van a descargar.")
+            xsource = XSource.download_data(ra, dec, radius)
 
-        return cls(astro_object, path, data_list, xsources)
+        try:
+            clustering_result = ClusteringResults.load(path_project)
+        except (FileNotFoundError, IsADirectoryError):
+            clustering_result = None
+            logging.info("No se ha encontrado resultados de clustering en el proyecto.")
+        return cls(astro_object, path, data_list, xsource, clustering_result)
 
     def save_project(self, path: Optional[str] = None):
         """
@@ -471,4 +497,40 @@ class AstroObjectProject:
             os.mkdir(path_project)
 
         for data in self.data_list:
-            data.save_data(path=path_project)
+            data.save(path=path_project)
+
+        XSource.save(path_project, self.xsource)
+
+        if isinstance(self.clustering_results, ClusteringResults):
+            self.clustering_results.save(path_project)
+
+    def get_data(self, data_name: str, index_data: Optional[int] = None) -> pd.DataFrame:
+        if isinstance(index_data, int):
+            return self.data_list[index_data].get_data(data_name)
+        for astro_data in self.data_list:
+            if data_name in astro_data.data:
+                return astro_data.get_data(data_name)
+        raise ValueError(f"El catalogo {data_name} no se ha encontrado en el proyecto")
+
+    def cluster_detection(
+        self,
+        data_name: str,
+        index_data: Optional[int] = None,
+        columns: list[str] = DEFAULT_COLS,
+        columns_to_clus: list[str] = DEFAULT_COLS_CLUS,
+        max_cluster: int = 10,
+        n_trials: int = 100,
+        method: ClusterMethodsNames = ClusterMethodsNames.DBSCAN_NAME,
+        params_to_opt: Optional[dict[str, list[str, float, int, list[Any]]]] = None,
+    ) -> ClusteringResults:
+        df_stars = self.get_data(data_name, index_data)
+        self.clustering_results = optimize_clustering(
+            df_stars=df_stars,
+            columns=columns,
+            columns_to_clus=columns_to_clus,
+            max_cluster=max_cluster,
+            n_trials=n_trials,
+            method=method,
+            params_to_opt=params_to_opt,
+        )
+        return self.clustering_results

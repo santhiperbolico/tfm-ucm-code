@@ -1,11 +1,16 @@
 import logging
+import os.path
 from typing import Optional
 
 import pandas as pd
-from astropy.table import Table
 from astroquery.esa.xmm_newton import XMMNewton
 from astroquery.gaia import Gaia
 from attr import attrib, attrs
+
+from hyper_velocity_stars_detection.data_storage import (
+    StorageObjectPandasCSV,
+    StorageObjectTableVotable,
+)
 
 
 class CatalogsType:
@@ -138,14 +143,16 @@ class Catalog:
             Tabla con los datos del catálogo descargados.
 
         """
-        results = Table.read(file_catalog, format="votable").to_pandas()
+        results = StorageObjectTableVotable.load(file_catalog).to_pandas()
         return results
 
 
 @attrs
 class XSource:
+    results = attrib(type=pd.DataFrame, init=False)
+
     @staticmethod
-    def download_results(ra: float, dec: float, radius: float) -> pd.DataFrame:
+    def download_data(ra: float, dec: float, radius: float) -> pd.DataFrame:
         """
         Método que descarga los datos del catalogo asociado teniendo en cuenta los parámetros.
 
@@ -181,4 +188,15 @@ class XSource:
         results = query_results[
             [col for col in query_results.columns if col not in discard_cols]
         ].to_pandas()
+        return results
+
+    @staticmethod
+    def save(path: str, results: pd.DataFrame) -> None:
+        path_file = os.path.join(path, "xsource.csv")
+        StorageObjectPandasCSV().save(path_file, results)
+
+    @staticmethod
+    def load(path: str):
+        path_file = os.path.join(path, "xsource.csv")
+        results = StorageObjectPandasCSV().load(path_file)
         return results

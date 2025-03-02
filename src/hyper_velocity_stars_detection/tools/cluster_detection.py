@@ -11,7 +11,11 @@ from sklearn.cluster import DBSCAN, HDBSCAN, KMeans
 from sklearn.mixture import GaussianMixture
 from sklearn.preprocessing import StandardScaler
 
-from hyper_velocity_stars_detection import utils
+from hyper_velocity_stars_detection.data_storage import (
+    ContainerSerializerZip,
+    StorageObjectPandasCSV,
+    StorageObjectPickle,
+)
 
 
 class GaussianMixtureClustering:
@@ -32,8 +36,8 @@ class GaussianMixtureClustering:
 
 ClusterMethods = Union[DBSCAN, KMeans, HDBSCAN, GaussianMixtureClustering]
 
-DEDAULT_COLS = ["pmra", "pmdec", "parallax"]
-DEDAULT_COLS_CLUS = DEDAULT_COLS + ["bp_rp", "phot_g_mean_mag"]
+DEFAULT_COLS = ["pmra", "pmdec", "parallax"]
+DEFAULT_COLS_CLUS = DEFAULT_COLS + ["bp_rp", "phot_g_mean_mag"]
 
 
 class ClusterMethodsNames:
@@ -234,16 +238,27 @@ class ClusteringResults:
     labels: np.ndarray[int]
     clustering: ClusterMethods
 
-    _storage = utils.ContainerSerializerZip(
+    _storage = ContainerSerializerZip(
         serializers={
-            "df_stars": utils.StorageObjectPandasCSV(),
-            "columns": utils.StorageObjectPickle(),
-            "labels": utils.StorageObjectPickle(),
-            "clustering": utils.StorageObjectPickle(),
+            "df_stars": StorageObjectPandasCSV(),
+            "columns": StorageObjectPickle(),
+            "labels": StorageObjectPickle(),
+            "clustering": StorageObjectPickle(),
         }
     )
 
-    def save_results(self, path: str):
+    def __str__(self) -> str:
+        n_clusters_ = len(set(self.labels)) - (1 if -1 in self.labels else 0)
+        n_noise_ = list(self.labels).count(-1)
+        description = f"Estimated number of clusters: {n_clusters_}\n"
+        description += f"Estimated number of noise points: {n_noise_}\n"
+
+        for label in np.unique(self.labels[self.labels > -1]):
+            mask_i = self.labels == label
+            description += f"\t - Volumen total del cluster {label}: {mask_i.sum()}.\n"
+        return description
+
+    def save(self, path: str):
         """
         Método que guarda los reusltados en un archivo zip.
 
@@ -262,27 +277,28 @@ class ClusteringResults:
         self._storage.save(path_name, container)
 
     @classmethod
-    def load_results(cls, path_name: str) -> "ClusteringResults":
+    def load(cls, path: str) -> "ClusteringResults":
         """
         Método que carga los resultados de la clusterización.
 
         Parameters
         ----------
-        path_name: str
+        path: str
             Ruta donde se quiere guardar
 
         Returns
         -------
 
         """
+        path_name = os.path.join(path, "stars_clustering.zip")
         params = cls._storage.load(path_name)
         return cls(**params)
 
 
 def optimize_clustering(
     df_stars: pd.DataFrame,
-    columns: list[str] = DEDAULT_COLS,
-    columns_to_clus: list[str] = DEDAULT_COLS_CLUS,
+    columns: list[str] = DEFAULT_COLS,
+    columns_to_clus: list[str] = DEFAULT_COLS_CLUS,
     max_cluster: int = 10,
     n_trials: int = 100,
     method: ClusterMethodsNames = ClusterMethodsNames.DBSCAN_NAME,

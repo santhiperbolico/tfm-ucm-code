@@ -104,6 +104,8 @@ class StorageObjectPandasCSV(StorageObject):
         object: pd.DataFrame
             Objeto cargado
         """
+        if not path[-4:] in (".csv", ".tsv"):
+            return pd.read_csv(path + ".csv")
         return pd.read_csv(path)
 
 

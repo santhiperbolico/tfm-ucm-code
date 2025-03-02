@@ -1,21 +1,19 @@
+from tempfile import TemporaryDirectory
+
 import numpy as np
 import pandas as pd
 import pytest
-from attr import attrs
 from sklearn.preprocessing import StandardScaler
 
-from hyper_velocity_stars_detection.tools.cluster_detection import score_cluster
-
-
-@attrs(auto_attribs=True)
-class DataTest:
-    df_data: pd.DataFrame
-    columns: list[str]
-    labels: np.ndarray[int]
+from hyper_velocity_stars_detection.tools.cluster_detection import (
+    DBSCAN,
+    ClusteringResults,
+    score_cluster,
+)
 
 
 @pytest.fixture
-def data_labels() -> DataTest:
+def data_labels() -> ClusteringResults:
     np.random.seed(1234)
     mean_cluster = np.array([[5.1, -2.1, 0.20], [3.1, 2.0, 0.10], [1.1, -7.0, 0.40]])
     std_cluster = np.array(
@@ -42,10 +40,19 @@ def data_labels() -> DataTest:
         item_0 = size
 
     df_data = pd.DataFrame(data=StandardScaler().fit_transform(data), columns=columns)
-    return DataTest(df_data, columns, labels)
+    return ClusteringResults(df_data, columns, labels.astype(int), DBSCAN())
 
 
 def test_score_cluster(data_labels):
-    score_result = score_cluster(data_labels.df_data, data_labels.columns, data_labels.labels)
-
+    score_result = score_cluster(data_labels.df_stars, data_labels.columns, data_labels.labels)
     assert score_result == pytest.approx(1.15, abs=1e-1)
+
+
+def test_clusteringresults_save_load(data_labels):
+    with TemporaryDirectory() as temp_dir:
+        data_labels.save(temp_dir)
+        new_data = ClusteringResults.load(temp_dir)
+
+    pd.testing.assert_frame_equal(new_data.df_stars, data_labels.df_stars)
+    assert new_data.columns == data_labels.columns
+    assert (new_data.labels == data_labels.labels).all()

@@ -71,19 +71,19 @@ def test_astroobject_download_object(
         (None, CatalogsType.GAIA_DR3, 1.0),
     ],
 )
-@patch("hyper_velocity_stars_detection.etls.catalogs.Table", autospec=True)
+@patch("hyper_velocity_stars_detection.etls.catalogs.StorageObjectTableVotable", autospec=True)
 def test_astroobject_read_object(
-    table_class_mock, file_to_read, catalog_name, radius_scale, astro_object
+    storage_class_mock, file_to_read, catalog_name, radius_scale, astro_object
 ):
-    table_class_mock.read.return_value = Table.read("tests/test_data/result_gaia.fits")
+    storage_class_mock.load.return_value = Table.read("tests/test_data/result_gaia.fits")
     df_result = astro_object.read_object("path_dir", file_to_read, catalog_name, radius_scale)
     assert isinstance(df_result, pd.DataFrame)
     assert df_result.shape[0] == 50
 
 
-@patch("hyper_velocity_stars_detection.etls.catalogs.Table", autospec=True)
-def test_astroobject_copy_set_extra_metrics(table_class_mock, astro_object):
-    table_class_mock.read.return_value = Table.read("tests/test_data/result_gaia.fits")
+@patch("hyper_velocity_stars_detection.etls.catalogs.StorageObjectTableVotable", autospec=True)
+def test_astroobject_copy_set_extra_metrics(storage_class_mock, astro_object):
+    storage_class_mock.load.return_value = Table.read("tests/test_data/result_gaia.fits")
     _ = astro_object.read_object("path_dir", "file.vot")
     df_data = astro_object.copy_set_extra_metrics()
     columns = ["pmra_kms", "pmdec_kms", "pm_kms", "pm", "pm_l", "pm_b", "uwe", "ruwe"]
@@ -91,9 +91,9 @@ def test_astroobject_copy_set_extra_metrics(table_class_mock, astro_object):
     assert np.array(col in df_data.columns for col in columns).all()
 
 
-@patch("hyper_velocity_stars_detection.etls.catalogs.Table", autospec=True)
-def test_astroobject_qualify_data(table_class_mock, astro_object):
-    table_class_mock.read.return_value = Table.read("tests/test_data/result_gaia.fits")
+@patch("hyper_velocity_stars_detection.etls.catalogs.StorageObjectTableVotable", autospec=True)
+def test_astroobject_qualify_data(storage_class_mock, astro_object):
+    storage_class_mock.load.return_value = Table.read("tests/test_data/result_gaia.fits")
     _ = astro_object.read_object("path_dir", "file.vot")
     result = astro_object.qualify_data()
     columns = ["pmra_kms", "pmdec_kms", "pm_kms", "pm", "pm_l", "pm_b", "uwe", "ruwe"]
@@ -102,9 +102,9 @@ def test_astroobject_qualify_data(table_class_mock, astro_object):
         assert np.array(col in df_data.columns for col in columns).all()
 
 
-@patch("hyper_velocity_stars_detection.etls.catalogs.Table", autospec=True)
-def test_astroobject_data_load_from_object(table_class_mock, astro_object):
-    table_class_mock.read.return_value = Table.read("tests/test_data/result_gaia.fits")
+@patch("hyper_velocity_stars_detection.etls.catalogs.StorageObjectTableVotable", autospec=True)
+def test_astroobject_data_load_from_object(storage_class_mock, astro_object):
+    storage_class_mock.load.return_value = Table.read("tests/test_data/result_gaia.fits")
     _ = astro_object.read_object("path_dir", "file.vot")
     data = AstroObjectData.load_data_from_object(astro_object, radio_scale=1)
     columns = ["pmra_kms", "pmdec_kms", "pm_kms", "pm", "pm_l", "pm_b", "uwe", "ruwe"]
@@ -115,30 +115,30 @@ def test_astroobject_data_load_from_object(table_class_mock, astro_object):
     assert len(data.data) == 4
 
 
-@patch("hyper_velocity_stars_detection.etls.catalogs.Table", autospec=True)
-def test_astroobject_data_save_load_from_zip(table_class_mock, astro_object):
-    table_class_mock.read.return_value = Table.read("tests/test_data/result_gaia.fits")
+@patch("hyper_velocity_stars_detection.etls.catalogs.StorageObjectTableVotable", autospec=True)
+def test_astroobject_data_save_load_from_zip(storage_class_mock, astro_object):
+    storage_class_mock.load.return_value = Table.read("tests/test_data/result_gaia.fits")
     _ = astro_object.read_object("path_dir", "file.vot")
     data = AstroObjectData.load_data_from_object(astro_object, radio_scale=1)
     with TemporaryDirectory() as tmp_dir:
         file = os.path.join(tmp_dir, data.data_name) + ".zip"
-        data.save_data(tmp_dir)
-        new_data = AstroObjectData.load_object_from_zip(file)
+        data.save(tmp_dir)
+        new_data = AstroObjectData.load(file)
 
     assert len(new_data.data) == 4
     assert new_data.data_name == data.data_name
 
 
-@patch("hyper_velocity_stars_detection.etls.catalogs.Table", autospec=True)
+@patch("hyper_velocity_stars_detection.etls.catalogs.StorageObjectTableVotable", autospec=True)
 @patch("hyper_velocity_stars_detection.astrobjects.AstroObject", autospec=True)
 @patch("hyper_velocity_stars_detection.astrobjects.XSource", autospec=True)
 def test_astroobject_project_save_load_from_zip(
-    xsource_class_mock, astro_object_class_mock, table_class_mock, astro_object
+    xsource_class_mock, astro_object_class_mock, storage_class_mock, astro_object
 ):
     xsource = pd.read_csv("tests/test_data/xsource.csv")
-    table_class_mock.read.return_value = Table.read("tests/test_data/result_gaia.fits")
+    storage_class_mock.load.return_value = Table.read("tests/test_data/result_gaia.fits")
     astro_object_class_mock.get_object.return_value = astro_object
-    xsource_class_mock.download_results.return_value = xsource
+    xsource_class_mock.download_data.return_value = xsource
     _ = astro_object.read_object("path_dir", "file.vot")
     data_list = [
         AstroObjectData.load_data_from_object(astro_object, radio_scale=1),

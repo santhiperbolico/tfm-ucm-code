@@ -50,9 +50,9 @@ def test_catalog_download(job_class_mock, gaia_class_mock, cluster):
     assert df_result.shape[0] == 50
 
 
-@patch("hyper_velocity_stars_detection.etls.catalogs.Table", autospec=True)
-def test_catalog_read(table_class_mock, cluster):
-    table_class_mock.read.return_value = Table.read("tests/test_data/result_gaia.fits")
+@patch("hyper_velocity_stars_detection.etls.catalogs.StorageObjectTableVotable", autospec=True)
+def test_catalog_read(storage_class_mock, cluster):
+    storage_class_mock.load.return_value = Table.read("tests/test_data/result_gaia.fits")
     df_result = Catalog.read_catalog("data_file.vot")
     assert isinstance(df_result, pd.DataFrame)
     assert df_result.shape[0] == 50
