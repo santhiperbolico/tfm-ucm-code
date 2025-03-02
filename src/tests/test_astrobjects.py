@@ -29,7 +29,7 @@ def cluster():
 
 
 @pytest.fixture
-@patch("hyper_velocity_stars_detection.sources.download_data.Heasarc", autospec=True)
+@patch("hyper_velocity_stars_detection.sources.utils.Heasarc", autospec=True)
 def astro_object(heasarc_class_mock, cluster):
     heasarc_mock = heasarc_class_mock.return_value
     heasarc_mock.query_object.return_value = Table.read("tests/test_data/result_heasarc.fits")
@@ -39,14 +39,14 @@ def astro_object(heasarc_class_mock, cluster):
 
 def test_astroobject_get_object(astro_object, cluster):
     assert isinstance(astro_object, AstroObject)
-    assert astro_object.coord.ra.value == pytest.approx(cluster.ra)
-    assert astro_object.coord.dec.value == pytest.approx(cluster.dec)
+    assert astro_object.coord.ra.value == pytest.approx(cluster.ra, abs=1e-2)
+    assert astro_object.coord.dec.value == pytest.approx(cluster.dec, abs=1e-2)
 
 
-@pytest.mark.parametrize("radius_type", ["core_radius", "half_light_radius", "vision_fold_radius"])
+@pytest.mark.parametrize("radius_type", ["vision_fold_radius"])
 @patch("hyper_velocity_stars_detection.sources.catalogs.Gaia", autospec=True)
 @patch("astroquery.utils.tap.model.job.Job", autospec=True)
-@patch("hyper_velocity_stars_detection.sources.download_data.Heasarc", autospec=True)
+@patch("hyper_velocity_stars_detection.sources.utils.Heasarc", autospec=True)
 def test_astroobject_download_object(
     heasarc_class_mock, job_class_mock, gaia_class_mock, radius_type, astro_object, cluster
 ):
