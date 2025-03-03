@@ -6,7 +6,7 @@ from google.cloud import storage
 from project_vars import BUCKET, PROJECT_ID, SELECTED_CLUSTERS
 from tqdm import tqdm
 
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "hvs-storage.json"
+# os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "hvs-storage.json"
 
 # Autenticación en Google Cloud
 project_id = PROJECT_ID  # Reemplázalo con tu ID de proyecto en Google Cloud
