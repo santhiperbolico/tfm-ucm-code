@@ -4,9 +4,18 @@ import os.path
 from typing import Optional
 
 import pandas as pd
+from attr import attrs
 
 from hyper_velocity_stars_detection.sources.catalogs import CatalogsType
 from hyper_velocity_stars_detection.sources.source import AstroObject, AstroObjectData
+
+
+@attrs(auto_attribs=True)
+class Cluster:
+    name: str
+    radio_scale: float
+    filter_parallax_min: Optional[float] = None
+    filter_parallax_max: Optional[float] = None
 
 
 def download_object(
@@ -154,3 +163,73 @@ def download_astro_data(
         astro_data.save(path_project)
         del astro_data
     gc.collect()
+
+
+def read_catalog_file(filepath: str) -> list[Cluster]:
+    """
+    Función que lee los nombres de los cluster d eun acatálogo dado.
+
+    Parameters
+    ----------
+    filepath: str
+        Ruta del archivo
+
+    Returns
+    -------
+    clusters_list: list[Cluster]
+        Lista de objetos cluster.
+    """
+    # Leer el archivo
+    with open(filepath, "r") as f:
+        lines = f.readlines()
+    # Encontrar el inicio de la tabla buscando la cabecera
+    start_idx = 0
+    for i, line in enumerate(lines):
+        if "ID" in line and "Name" in line:  # Línea con nombres de columnas
+            start_idx = i + 1  # Los datos comienzan en la siguiente línea
+            break
+
+    # Extraer los datos desde la tabla hasta la siguiente sección
+    rows = []
+    for line in lines[start_idx:]:
+        if "_" in line:  # Línea de separación de secciones
+            break
+
+        # Leer las columnas según el formato de la tabla
+        data = (
+            line[:12].strip(),
+            line[12:26].strip(),
+            line[26:38].strip(),
+            line[38:50].strip(),
+        )
+        data += (
+            line[50:58].strip(),
+            line[58:66].strip(),
+            line[66:74].strip(),
+            line[74:82].strip(),
+        )
+        data += line[82:90].strip(), line[90:98].strip(), line[98:106].strip()
+
+        rows.append(data)
+
+    # Crear un DataFrame de Pandas
+    columns = [
+        "ID",
+        "Name",
+        "RA (J2000)",
+        "DEC (J2000)",
+        "L (deg)",
+        "B (deg)",
+        "R_Sun (kpc)",
+        "R_GC (kpc)",
+        "X (kpc)",
+        "Y (kpc)",
+        "Z (kpc)",
+    ]
+    df = pd.DataFrame(rows, columns=columns)
+    names = df.ID.str.lower().to_list()
+    clusters_list = []
+    for name in names:
+        cluster = Cluster(name, 6, 0, 1)
+        clusters_list.append(cluster)
+    return clusters_list

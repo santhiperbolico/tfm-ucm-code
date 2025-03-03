@@ -188,7 +188,7 @@ class AstroObject:
         self.data = results
         return self.data
 
-    def copy_set_extra_metrics(self) -> pd.DataFrame:
+    def set_extra_metrics(self) -> pd.DataFrame:
         """
         Método que copia los datos originales y calcula métricas extra como los movimientos
         propios en km por segundo o el movimiento propio en coordenadas galacticas.
@@ -198,7 +198,7 @@ class AstroObject:
         df_r: pd.DataFrame
             Datos copiados con las métricas extra.
         """
-        df_r = self.data.copy()
+        df_r = self.data
         df_r["pmra_kms"] = convert_mas_yr_in_km_s(df_r["parallax"].values, df_r["pmra"].values)
         df_r["pmdec_kms"] = convert_mas_yr_in_km_s(df_r["parallax"].values, df_r["pmdec"].values)
         df_r["pm_kms"] = np.sqrt(df_r.pmra_kms**2 + df_r.pmdec_kms**2)
@@ -247,7 +247,7 @@ class AstroObject:
         dfr_c4: pd.DataFrame
             Las estrellas con un error de paralaje menor del 10% y de pm menores al 20%.
         """
-        dfr_c1 = self.copy_set_extra_metrics()
+        dfr_c1 = self.set_extra_metrics()
         mask_filter = dfr_c1.ruwe < max_ruwe
         if pmra_kms_min:
             mask_filter = mask_filter & (dfr_c1.pmra_kms > pmra_kms_min)

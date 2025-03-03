@@ -85,7 +85,7 @@ def test_astroobject_read_object(
 def test_astroobject_copy_set_extra_metrics(storage_class_mock, astro_object):
     storage_class_mock.load.return_value = Table.read("tests/test_data/result_gaia.fits")
     _ = astro_object.read_object("path_dir", "file.vot")
-    df_data = astro_object.copy_set_extra_metrics()
+    df_data = astro_object.set_extra_metrics()
     columns = ["pmra_kms", "pmdec_kms", "pm_kms", "pm", "pm_l", "pm_b", "uwe", "ruwe"]
     assert isinstance(df_data, pd.DataFrame)
     assert np.array(col in df_data.columns for col in columns).all()

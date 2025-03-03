@@ -1,0 +1,5 @@
+# Google Cloud SDK para subir archivos a GCS
+google-cloud-storage
+google-auth
+google-auth-oauthlib
+google-auth-httplib2

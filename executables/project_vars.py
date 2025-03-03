@@ -14,15 +14,12 @@ class Cluster:
     filter_parallax_max: Optional[float] = None
 
 
-PATH = "../data/globular_clusters/"
+PATH = "/data/"
 
 PM_KMS_MIN = 50
 
-# SELECTED_CLUSTERS = [
-#     Cluster("ngc 104", 6, 0, 1),
-#     Cluster("ngc 5139", 6, 0, 1),
-#     Cluster("ngc 6121", 6, 0, 1),
-#     Cluster("ngc 4472", 6, None, 1),
-# ]
 
-SELECTED_CLUSTERS = read_catalog_file(os.path.join(PATH, "mwgc.dat.txt"))
+SELECTED_CLUSTERS = read_catalog_file(os.path.join(PATH, "mwgc.dat.txt"))[1:2]
+
+PROJECT_ID = "hvs-detection-imbh"
+BUCKET = "globular_cluster_data"
