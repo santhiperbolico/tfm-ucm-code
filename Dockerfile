@@ -8,7 +8,7 @@ WORKDIR /hvs
 
 # Copiar el código fuente
 COPY src/ /hvs/
-COPY data/mwgc.dat.txt /data/mwgc.dat.txt
+COPY executables/mwgc.dat.txt /data/mwgc.dat.txt
 COPY executables/ /hvs/
 
 # Establecer la variable de entorno para PYTHONPATH
