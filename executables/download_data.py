@@ -3,10 +3,10 @@ import os
 from tempfile import TemporaryDirectory
 
 from google.cloud import storage
-from project_vars import BUCKET, PROJECT_ID, SELECTED_CLUSTERS
+from project_vars import BUCKET, PM_KMS_MIN, PROJECT_ID, SELECTED_CLUSTERS
 from tqdm import tqdm
 
-# os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "hvs-storage.json"
+from hyper_velocity_stars_detection.jobs.download_filter_job import download_astro_data
 
 # Autenticación en Google Cloud
 project_id = PROJECT_ID  # Reemplázalo con tu ID de proyecto en Google Cloud
@@ -39,20 +39,16 @@ if __name__ == "__main__":
         logging.info(f"Procesando elemento {cluster.name}")
         try:
             with TemporaryDirectory() as temp_path:
-                # download_astro_data(
-                #     cluster_name=cluster.name,
-                #     read_from_cache=True,
-                #     path=temp_path,
-                #     radio_scale=cluster.radio_scale,
-                #     filter_parallax_max=cluster.filter_parallax_max,
-                #     pmra_kms_min=PM_KMS_MIN,
-                #     pmdec_kms_min=PM_KMS_MIN,
-                # )
+                download_astro_data(
+                    cluster_name=cluster.name,
+                    read_from_cache=True,
+                    path=temp_path,
+                    radio_scale=cluster.radio_scale,
+                    filter_parallax_max=cluster.filter_parallax_max,
+                    pmra_kms_min=PM_KMS_MIN,
+                    pmdec_kms_min=PM_KMS_MIN,
+                )
                 path = f"{temp_path}/{cluster.name}/"
-                os.mkdir(path)
-                filename = f"{path}/test.txt"
-                with open(filename, "w") as file:
-                    file.write("HOLA MUNDO")
                 upload_folder_to_gcs(project_id, bucket_name, path, cluster.name)
         except Exception as e:
             logging.info(f"Ha fallado {cluster.name} por {e}")
