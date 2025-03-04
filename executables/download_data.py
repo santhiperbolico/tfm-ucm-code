@@ -9,7 +9,7 @@ from tqdm import tqdm
 from hyper_velocity_stars_detection.utils import download_astro_data
 
 # Autenticación en Google Cloud
-project_id = PROJECT_ID  # Reemplázalo con tu ID de proyecto en Google Cloud
+project_id = PROJECT_ID
 bucket_name = BUCKET
 
 

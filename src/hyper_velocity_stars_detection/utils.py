@@ -7,7 +7,7 @@ import pandas as pd
 from attr import attrs
 
 from hyper_velocity_stars_detection.sources.catalogs import CatalogsType
-from hyper_velocity_stars_detection.sources.source import AstroObject, AstroObjectData
+from hyper_velocity_stars_detection.sources.source import AstroObject
 
 
 @attrs(auto_attribs=True)
@@ -155,13 +155,8 @@ def download_astro_data(
             params_download.update(params_download_cluster)
             params_filter.update(params_filter_cluster)
         astro_object = download_object(**params_download)
-        params_filter["astro_object"] = astro_object
-        astro_data = AstroObjectData.load_data_from_object(**params_filter)
         del astro_object.data
         del astro_object
-        logging.info(str(astro_data))
-        astro_data.save(path_project)
-        del astro_data
     gc.collect()
 
 
