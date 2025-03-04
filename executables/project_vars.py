@@ -1,9 +1,7 @@
-import os
+import argparse
 from typing import Optional
 
 from attr import attrs
-
-from hyper_velocity_stars_detection.utils import read_catalog_file
 
 
 @attrs(auto_attribs=True)
@@ -14,12 +12,35 @@ class Cluster:
     filter_parallax_max: Optional[float] = None
 
 
-PATH = "/data/"
+def get_argument_parser() -> argparse.ArgumentParser:
+    """
+    Función que genera los argumentos de download_data.
 
-PM_KMS_MIN = 50
+    Returns
+    -------
+    parser: argparse.ArgumentParser
+        Parser con los argumentos del job.
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--path", default="data/globular_clusters/")
+    parser.add_argument("--pm_kms", default=50)
+    return parser
 
 
-SELECTED_CLUSTERS = read_catalog_file(os.path.join(PATH, "mwgc.dat.txt"))
+def get_params(argv: list[str]) -> argparse.Namespace:
+    """
+    Función de preprocesado de los argumentos del job de MMM para devolver un
+    objeto MarketingMixProject con los parámetros del proceso.
 
-PROJECT_ID = "hvs-detection-imbh"
-BUCKET = "globular_cluster_data"
+    Parameters
+    ----------
+    argv: list[str]
+        Lista de argumentos del job.
+
+    Returns
+    -------
+    args: argparse.Namespace
+        Argumentos.
+    """
+    args = get_argument_parser().parse_args(argv)
+    return args

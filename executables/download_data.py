@@ -1,19 +1,16 @@
 import logging
 import os
+import sys
 from tempfile import TemporaryDirectory
 
 from astroquery.simbad import Simbad
 from google.cloud import storage
-from project_vars import BUCKET, PROJECT_ID, SELECTED_CLUSTERS
+from project_vars import get_params
 from tqdm import tqdm
 
-from hyper_velocity_stars_detection.utils import download_astro_data
+from hyper_velocity_stars_detection.utils import download_astro_data, read_catalog_file
 
 Simbad.SIMBAD_URL = "http://simbad.u-strasbg.fr/simbad/sim-id"
-
-# Autenticación en Google Cloud
-project_id = PROJECT_ID
-bucket_name = BUCKET
 
 
 def upload_folder_to_gcs(project_id, bucket_name, temp_path, destination_folder):
@@ -38,7 +35,15 @@ if __name__ == "__main__":
     root = logging.getLogger()
     root.setLevel(os.environ.get("LOGLEVEL", "INFO"))
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] [%(asctime)s] %(message)s")
-    for cluster in tqdm(SELECTED_CLUSTERS, desc="Procesando elementos", unit="item"):
+    args = get_params(sys.argv[1:])
+
+    # Autenticación en Google Cloud
+    project_id = os.getenv("PROJECT_ID")
+    bucket_name = os.getenv("BUCKET")
+
+    selected_clusters = read_catalog_file(os.path.join(args.path, "mwgc.dat.txt"))
+
+    for cluster in tqdm(selected_clusters, desc="Procesando elementos", unit="item"):
         logging.info(f"Procesando elemento {cluster.name}")
         try:
             with TemporaryDirectory() as temp_path:
@@ -49,8 +54,6 @@ if __name__ == "__main__":
                     radio_scale=cluster.radio_scale,
                     filter_parallax_max=cluster.filter_parallax_max,
                 )
-                path = f"{temp_path}/{cluster.name}/"
-                upload_folder_to_gcs(project_id, bucket_name, temp_path, cluster.name)
-                upload_folder_to_gcs(project_id, bucket_name, path, cluster.name)
+                upload_folder_to_gcs(project_id, bucket_name, temp_path, "raw_data")
         except Exception as e:
             logging.info(f"Ha fallado {cluster.name} por {e}")
