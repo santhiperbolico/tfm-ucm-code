@@ -2,11 +2,14 @@ import logging
 import os
 from tempfile import TemporaryDirectory
 
+from astroquery.simbad import Simbad
 from google.cloud import storage
 from project_vars import BUCKET, PM_KMS_MIN, PROJECT_ID, SELECTED_CLUSTERS
 from tqdm import tqdm
 
 from hyper_velocity_stars_detection.utils import download_astro_data
+
+Simbad.SIMBAD_URL = "http://simbad.u-strasbg.fr/simbad/sim-id"
 
 # Autenticación en Google Cloud
 project_id = PROJECT_ID
@@ -49,6 +52,7 @@ if __name__ == "__main__":
                     pmdec_kms_min=PM_KMS_MIN,
                 )
                 path = f"{temp_path}/{cluster.name}/"
+                upload_folder_to_gcs(project_id, bucket_name, temp_path, cluster.name)
                 upload_folder_to_gcs(project_id, bucket_name, path, cluster.name)
         except Exception as e:
             logging.info(f"Ha fallado {cluster.name} por {e}")

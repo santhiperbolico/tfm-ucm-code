@@ -17,6 +17,3 @@ ENV PYTHONPATH="/hvs"
 # Instalar dependencias
 RUN pip install -r requirements-gcp.txt
 RUN pip install -r requirements.txt
-
-# Establecer el script que se ejecutará al iniciar el contenedor
-ENTRYPOINT ["python"]
