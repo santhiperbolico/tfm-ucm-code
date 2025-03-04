@@ -19,4 +19,4 @@ RUN pip install -r requirements-gcp.txt
 RUN pip install -r requirements.txt
 
 # Establecer el script que se ejecutará al iniciar el contenedor
-ENTRYPOINT ["python", "/hvs/download_data.py"]
+ENTRYPOINT ["python"]
