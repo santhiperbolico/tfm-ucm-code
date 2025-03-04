@@ -71,7 +71,8 @@ class Catalog:
         filter_parallax_max: Optional[float] = None,
         filter_parallax_error: Optional[float] = None,
         row_limit: int = -1,
-    ) -> pd.DataFrame:
+        return_data: bool = True,
+    ) -> Optional[pd.DataFrame]:
         """
         Método que descarga los datos del catalogo asociado teniendo en cuenta los parámetros.
 
@@ -93,6 +94,8 @@ class Catalog:
             Máximo error en el parale a buscar.
         row_limit: int, default -1
             Límite de filas consultadas. Por defecto se extraen todas las filas.
+        return_data: bool, default False
+            Indica si queremos devolver lso datos en forma de dataframe.
 
         Returns
         -------
@@ -120,8 +123,9 @@ class Catalog:
             query, dump_to_file=True, output_format="votable", output_file=f"{output_file}"
         )
         logging.info(job)
-        results = job.get_results()
-        return results.to_pandas()
+        if return_data:
+            results = job.get_results()
+            return results.to_pandas()
 
     @staticmethod
     def read_catalog(file_catalog: str) -> pd.DataFrame:

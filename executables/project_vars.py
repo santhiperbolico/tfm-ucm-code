@@ -19,7 +19,7 @@ PATH = "/data/"
 PM_KMS_MIN = 50
 
 
-SELECTED_CLUSTERS = read_catalog_file(os.path.join(PATH, "mwgc.dat.txt"))[1:2]
+SELECTED_CLUSTERS = read_catalog_file(os.path.join(PATH, "mwgc.dat.txt"))
 
 PROJECT_ID = "hvs-detection-imbh"
 BUCKET = "globular_cluster_data"

@@ -4,7 +4,7 @@ from tempfile import TemporaryDirectory
 
 from astroquery.simbad import Simbad
 from google.cloud import storage
-from project_vars import BUCKET, PM_KMS_MIN, PROJECT_ID, SELECTED_CLUSTERS
+from project_vars import BUCKET, PROJECT_ID, SELECTED_CLUSTERS
 from tqdm import tqdm
 
 from hyper_velocity_stars_detection.utils import download_astro_data
@@ -48,8 +48,6 @@ if __name__ == "__main__":
                     path=temp_path,
                     radio_scale=cluster.radio_scale,
                     filter_parallax_max=cluster.filter_parallax_max,
-                    pmra_kms_min=PM_KMS_MIN,
-                    pmdec_kms_min=PM_KMS_MIN,
                 )
                 path = f"{temp_path}/{cluster.name}/"
                 upload_folder_to_gcs(project_id, bucket_name, temp_path, cluster.name)

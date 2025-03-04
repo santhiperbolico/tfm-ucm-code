@@ -58,15 +58,16 @@ def download_object(
     """
     result = None
     if read_from_cache:
-        try:
-            result = astro_object.read_object(
-                catalog_name=catalog_name, radius_scale=radio_scale, path=path
-            )
-            logging.info("\t - Archivo cargado desde cache.")
-        except FileNotFoundError:
+        r_scale = f"r{radio_scale:.0f}"
+        file_to_read = f"{catalog_name}_{astro_object.name}_{r_scale}.vot"
+        file = os.path.join(path, file_to_read)
+        if os.path.isfile(file):
             logging.info(
-                "\t - No hay archivos para cargar en la cache. Se van a descargar los datos."
+                "\t - El archivo está descargado, si quieres descargarlo de "
+                "nuevo borra el antiguo."
             )
+            return astro_object
+        logging.info("\t - No hay archivos para cargar en la cache. Se van a descargar los datos.")
 
     if not isinstance(result, pd.DataFrame):
         _ = astro_object.download_object(
@@ -76,6 +77,7 @@ def download_object(
             filter_parallax_max=filter_parallax_max,
             filter_parallax_error=filter_parallax_error,
             path=path,
+            return_data=False,
         )
     return astro_object
 
@@ -89,9 +91,6 @@ def download_astro_data(
     filter_parallax_min: float = None,
     filter_parallax_max: Optional[float] = None,
     filter_parallax_error: float = 0.30,
-    max_ruwe: float = 1.4,
-    pmra_kms_min: Optional[float] = None,
-    pmdec_kms_min: Optional[float] = None,
 ) -> None:
     """
     Función que descarga o carga desde la cache los datos limpios en un proyecto.
@@ -131,32 +130,21 @@ def download_astro_data(
         "filter_parallax_max": filter_parallax_max,
         "filter_parallax_error": filter_parallax_error,
     }
-    params_filter_cluster = {
-        "pmra_kms_min": pmra_kms_min,
-        "pmdec_kms_min": pmdec_kms_min,
-    }
     params_default = {
         "read_from_cache": read_from_cache,
         "path": path,
         "catalog_name": catalog_name,
     }
-    path_project = os.path.join(path, cluster_name)
-    if not os.path.exists(path_project):
-        os.mkdir(path_project)
 
     for radio in radio_list:
         logging.info(f"Descargando {cluster_name} para r_scale {radio}")
         astro_object = AstroObject.get_object(cluster_name)
         logging.info("Objeto seleccionado: \n" + astro_object.info.to_pandas().to_string())
         params_download = {"astro_object": astro_object, "radio_scale": radio}
-        params_filter = {"max_ruwe": max_ruwe, "radio_scale": radio}
         params_download.update(params_default)
         if radio > 1:
             params_download.update(params_download_cluster)
-            params_filter.update(params_filter_cluster)
-        astro_object = download_object(**params_download)
-        del astro_object.data
-        del astro_object
+        _ = download_object(**params_download)
     gc.collect()
 
 

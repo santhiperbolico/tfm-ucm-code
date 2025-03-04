@@ -106,6 +106,7 @@ class AstroObject:
         filter_parallax_max: Optional[float] = None,
         filter_parallax_error: Optional[float] = None,
         path: str = ".",
+        return_data: bool = True,
     ) -> pd.DataFrame:
         """
          Método que descarga los datos del objeto astronómico de catalog_name.
@@ -126,6 +127,8 @@ class AstroObject:
              Máximo error en el parale a buscar.
          path: str, default "."
             Ruta donde se quiere guardar el archivo
+         return_data: bool, default False
+            Indica si queremos devolver lso datos en forma de dataframe.
 
         Returns
          -------
@@ -147,10 +150,12 @@ class AstroObject:
             filter_parallax_min=filter_parallax_min,
             filter_parallax_max=filter_parallax_max,
             filter_parallax_error=filter_parallax_error,
+            return_data=return_data,
         )
-        logging.info(f"Se encontraron {len(results)} fuentes en el radio de búsqueda:")
-        self.data = results
-        return self.data
+        if isinstance(results, pd.DataFrame):
+            logging.info(f"Se encontraron {len(results)} fuentes en el radio de búsqueda:")
+            self.data = results
+            return self.data
 
     def read_object(
         self,
