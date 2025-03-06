@@ -1,8 +1,9 @@
 import logging
 import os
+import sys
 
 from hyper_velocity_stars_detection.astrobjects import AstroObjectProject
-from hyper_velocity_stars_detection.jobs.project_vars import PATH, SELECTED_CLUSTERS
+from hyper_velocity_stars_detection.jobs.utils import get_params, read_catalog_file
 
 
 class ProjectDontExist(Exception):
@@ -42,5 +43,7 @@ if __name__ == "__main__":
     root = logging.getLogger()
     root.setLevel(os.environ.get("LOGLEVEL", "INFO"))
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] [%(asctime)s] %(message)s")
-    for cluster in SELECTED_CLUSTERS:
-        project = download_data(cluster_name=cluster.name, path=PATH)
+    args = get_params(sys.argv[1:])
+    selected_clusters = read_catalog_file(os.path.join(args.path, "mwgc.dat.txt"))
+    for cluster in selected_clusters:
+        project = download_data(cluster_name=cluster.name, path=args.path)

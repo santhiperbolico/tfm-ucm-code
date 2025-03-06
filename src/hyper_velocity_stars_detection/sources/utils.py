@@ -1,6 +1,7 @@
 import logging
 
 import astropy.units as u
+import numpy as np
 from astropy.coordinates import SkyCoord
 from astropy.table.table import Table
 from astropy.units import Unit
@@ -77,10 +78,18 @@ def get_object_from_simbad(name: str, timeout: int = 120) -> Table:
      DidntFindObject: Cuando no se ecnuentra el objeto en el catálogo.
     """
     custom_simbad = Simbad()
+    custom_simbad.add_votable_fields("dim")
     custom_simbad.TIMEOUT = timeout
     results = custom_simbad.query_object(name)
     if results is None:
         raise DidntFindObject(f"No se encontró el objeto {name} en Simbad.")
+    coords = SkyCoord(ra=results["RA"], dec=results["DEC"], unit=(u.hourangle, u.deg))
+
+    results["RA"] = coords.ra.deg * u.deg
+    results["DEC"] = coords.dec.deg * u.deg
+    results["ANGULAR_SIZE"] = results["GALDIM_MAJAXIS"].value * u.arcmin
+    results["RA"].format = "{:7.5f}"
+    results["DEC"].format = "{:7.5f}"
     return results
 
 
@@ -109,6 +118,11 @@ def get_object_from_heasarc(name: str) -> Table:
     )
     if result_cluster is None:
         raise DidntFindObject(f"No se encontró el objeto {name} en Heasarc.")
+
+    result_cluster["ANGULAR_SIZE"] = (
+        np.power(10, result_cluster["CENTRAL_CONCENTRATION"].value)
+        * result_cluster["CORE_RADIUS"].value
+    ) * u.arcmin
     return result_cluster
 
 
