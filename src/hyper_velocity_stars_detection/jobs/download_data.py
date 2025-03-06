@@ -2,10 +2,13 @@ import logging
 import os
 import sys
 
-from project_vars import get_params
 from tqdm import tqdm
 
-from hyper_velocity_stars_detection.utils import download_astro_data, read_catalog_file
+from hyper_velocity_stars_detection.jobs.utils import (
+    download_astro_data,
+    get_params,
+    read_catalog_file,
+)
 
 if __name__ == "__main__":
     root = logging.getLogger()
