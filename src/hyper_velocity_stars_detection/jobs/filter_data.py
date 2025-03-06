@@ -16,7 +16,6 @@ if __name__ == "__main__":
     files_list = os.listdir(args.path)
     for file_name in tqdm(files_list, desc="Procesando elementos", unit="item"):
         logging.info(f"Procesando elemento {file_name}")
-        # Saltar si es un "subdirectorio"
         if file_name[-4:] == ".vot":
             name = file_name.split("_")[1]
             radio_scale = int(file_name.split("_")[2].replace("r", "").replace(".vot", ""))
