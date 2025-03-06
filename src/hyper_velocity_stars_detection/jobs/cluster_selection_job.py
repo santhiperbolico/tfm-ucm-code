@@ -2,42 +2,7 @@ import logging
 import os
 import sys
 
-from hyper_velocity_stars_detection.astrobjects import AstroObjectProject
-from hyper_velocity_stars_detection.jobs.utils import get_params, read_catalog_file
-
-
-class ProjectDontExist(Exception):
-    pass
-
-
-def download_data(cluster_name: str, path: str) -> AstroObjectProject:
-    """
-    Función que descarga o carga desde la cache los datos limpios en un proyecto.
-
-    Parameters
-    ----------
-    cluster_name: str,
-        Nombre del cluster
-    path: str
-        Ruta donde se quiere guardar los archivos.
-
-    Returns
-    -------
-    project: AstroObjectProject
-        Proyecto donde se guardan los resultados.
-    """
-    path_project = os.path.join(path, cluster_name)
-    if os.path.exists(path_project):
-        zip_f = [file for file in os.listdir(path_project) if ".zip" == file[-4:]]
-        if len(zip_f) > 0:
-            project = AstroObjectProject.load_project(cluster_name, path)
-            logging.info("Cargando primer catálogo")
-            logging.info(str(project.data_list[0]))
-            logging.info("Cargando segundo catálogo")
-            logging.info(str(project.data_list[1]))
-            return project
-    raise ProjectDontExist("No hay datos descargados del proyecto")
-
+from hyper_velocity_stars_detection.jobs.utils import get_params, load_project, read_catalog_file
 
 if __name__ == "__main__":
     root = logging.getLogger()
@@ -46,4 +11,4 @@ if __name__ == "__main__":
     args = get_params(sys.argv[1:])
     selected_clusters = read_catalog_file(os.path.join(args.path, "mwgc.dat.txt"))
     for cluster in selected_clusters:
-        project = download_data(cluster_name=cluster.name, path=args.path)
+        project = load_project(cluster_name=cluster.name, path=args.path)
