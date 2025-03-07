@@ -171,7 +171,7 @@ def cmd_with_cluster(
     magnitud_field: str = "phot_g_mean_mag",
     isochrone_distance_module: float = 0,
     isochrone_redding: float = 0,
-) -> tuple[plt.Axes, plt.Figure]:
+) -> tuple[plt.Figure, plt.Axes]:
     """
     Función que genera la gráfica del Color Magnitud Diagram. S
     Parameters
@@ -193,10 +193,10 @@ def cmd_with_cluster(
 
     Returns
     -------
+    fig: Figure
+            Figura con el CMD.
     ax: Axes
         Eje de la gráfica.
-    fig: Figure
-        Figura con el CMD.
     """
     # Crear la figura y los ejes
     fig, ax = plt.subplots(figsize=(15, 6))
@@ -238,7 +238,7 @@ def cmd_with_cluster(
     ax.set_xlabel(color_field)
     ax.set_ylabel(magnitud_field)
     plt.gca().invert_yaxis()
-    return ax, fig
+    return fig, ax
 
 
 # Función para aplicar el módulo de distancia y enrojecimiento a la isocrona
@@ -365,9 +365,10 @@ def get_best_isochrone_fitted(
 def cluster_representation_with_hvs(
     df_gc: pd.DataFrame,
     df_hvs_candidates: pd.DataFrame,
-    factor_sigma: float = 2.0,
-    hvs_pm: float = 50,
+    factor_sigma: float = 1.0,
+    hvs_pm: float = 150,
     df_source_x: Optional[pd.DataFrame] = None,
+    legend: bool = True,
 ) -> tuple[plt.Figure, plt.Axes]:
     """
     Función que representa el cluster con las candidatas HVS en coordenadas galacticas
@@ -379,12 +380,14 @@ def cluster_representation_with_hvs(
         Catalogo de estrellas del cluster
     df_hvs_candidates: pd.DataFrame
         Catálogo de estrellas donde se quiere buscar las HVS
-    factor_sigma: float, default 2
+    factor_sigma: float, default 1
         Proporción del sigma del paralaje que se quiere usar para seleccionar las HVS
     hvs_pm: float, default
-        Movimiento propio mínimo en la selección de HVS
+        Movimiento propio mínimo en km por segundo en la selección de HVS
     df_source_x: Optional[pd.DataFrame], None
         Si se indica tabla con las fuentes de rayos X a representar.
+    legend: bool, default True
+            Indica si se quiere graficar la leyenda.
 
     Returns
     -------
@@ -403,11 +406,15 @@ def cluster_representation_with_hvs(
         df_hvs_candidates.parallax < parallax_range[1]
     )
 
-    mask_hvs = ((df_hvs_candidates.pm.abs() > hvs_pm)) & mask_p
+    pm_candidates = df_hvs_candidates.pm_kms - df_gc.pm_kms.mean()
+    mask_hvs = (pm_candidates > hvs_pm) & mask_p
     fig, ax = plt.subplots(figsize=(8, 5))
 
     selected = df_hvs_candidates[mask_hvs]
     factor = 200
+
+    mean_pm_l = df_gc.pm_l.mean()
+    mean_pm_b = df_gc.pm_b.mean()
 
     # Graficar las posiciones de las estrellas del cúmulo
     ax.scatter(df_gc.l, df_gc.b, s=1, color="grey", alpha=0.5)
@@ -416,20 +423,19 @@ def cluster_representation_with_hvs(
     ax.quiver(
         df_gc.l,
         df_gc.b,
-        df_gc.pm_l / factor,
-        df_gc.pm_b / factor,
+        (df_gc.pm_l - mean_pm_l) / factor,
+        (df_gc.pm_b - mean_pm_b) / factor,
         color="grey",
         scale=5,
         width=0.003,
     )
 
     # Marcar las estrellas seleccionadas (ejemplo: aquellas con ciertas condiciones)
-    # TODO: Revisar generación de vectores.
     ax.quiver(
         selected["l"],
         selected["b"],
-        selected["pm_l"] / factor,
-        selected["pm_b"] / factor,
+        (selected["pm_l"] - mean_pm_l) / factor,
+        (selected["pm_b"] - mean_pm_b) / factor,
         color="blue",
         scale=5,
         width=0.003,
@@ -449,5 +455,6 @@ def cluster_representation_with_hvs(
     # Etiquetas y detalles
     ax.set_xlabel("l (Galactic Longitude)")
     ax.set_ylabel("b (Galactic Latitude)")
-    ax.legend()
+    if legend:
+        ax.legend()
     return fig, ax

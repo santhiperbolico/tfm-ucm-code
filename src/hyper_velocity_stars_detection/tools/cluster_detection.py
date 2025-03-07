@@ -36,11 +36,15 @@ class GaussianMixtureClustering:
 
 ClusterMethods = Union[DBSCAN, KMeans, HDBSCAN, GaussianMixtureClustering]
 
-DEFAULT_COLS = ["pmra", "pmdec", "parallax"]
+DEFAULT_COLS = ["pm", "parallax"]
 DEFAULT_COLS_CLUS = DEFAULT_COLS + ["bp_rp", "phot_g_mean_mag"]
 
 
 class ClusterMethodsNames:
+    """
+    Nombres de los métodos de clustering.
+    """
+
     DBSCAN_NAME = "dbscan"
     KMEANS_NAME = "kmeans"
     HDBSCAN_NAME = "hdbscan"
@@ -48,6 +52,10 @@ class ClusterMethodsNames:
 
 
 class ClusterParamsDistribution:
+    """
+    Clase que engloba los parámetros por defecto en cada método de clustering.
+    """
+
     DBSCAN_PARAMS = {
         "eps": ["unif", "eps", 0.1, 1.0],
         "min_samples": ["int", "min_samples", 3, 10],
@@ -258,6 +266,14 @@ class ClusteringResults:
             description += f"\t - Volumen total del cluster {label}: {mask_i.sum()}.\n"
         return description
 
+    @property
+    def gc(self) -> pd.DataFrame:
+        """
+        Estrellas del conjutno de estrellas mayoritario.
+        """
+        mask = self.labels == get_main_cluster(self.labels)
+        return self.df_stars[mask]
+
     def save(self, path: str):
         """
         Método que guarda los reusltados en un archivo zip.
@@ -293,6 +309,42 @@ class ClusteringResults:
         path_name = os.path.join(path, "stars_clustering.zip")
         params = cls._storage.load(path_name)
         return cls(**params)
+
+    def selected_hvs(
+        self,
+        df_hvs_candidates: pd.DataFrame,
+        factor_sigma: float = 1.0,
+        hvs_pm: float = 150,
+    ):
+        """
+        Función que filtra y selecciona las candidatas a HVS.
+
+        Parameters
+        ----------
+        df_hvs_candidates: pd.DataFrame
+           Catálogo de estrellas donde se quiere buscar las HVS
+        factor_sigma: float, default 1
+           Proporción del sigma del paralaje que se quiere usar para seleccionar las HVS
+        hvs_pm: float, default
+           Movimiento propio mínimo en km por segundo en la selección de HVS
+
+        Returns
+        -------
+        selected: pd.DataFrame
+            Estrellas seleccionadas
+        """
+        parallax_range = [
+            self.gc.parallax.mean() - factor_sigma * self.gc.parallax.std(),
+            self.gc.parallax.mean() + factor_sigma * self.gc.parallax.std(),
+        ]
+
+        mask_p = (df_hvs_candidates.parallax > parallax_range[0]) & (
+            df_hvs_candidates.parallax < parallax_range[1]
+        )
+
+        pm_candidates = df_hvs_candidates.pm_kms - self.gc.pm_kms.mean()
+        mask_hvs = (pm_candidates > hvs_pm) & mask_p
+        return df_hvs_candidates[mask_hvs]
 
 
 def optimize_clustering(
