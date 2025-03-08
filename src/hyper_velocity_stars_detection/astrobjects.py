@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from attr import attrib, attrs
 
+from hyper_velocity_stars_detection.data_storage import StorageObjectFigures
 from hyper_velocity_stars_detection.sources.source import AstroObject, AstroObjectData, get_radio
 from hyper_velocity_stars_detection.sources.xray_source import XSource
 from hyper_velocity_stars_detection.tools.cluster_detection import (
@@ -229,7 +230,10 @@ class AstroObjectProject:
             legend=legend,
         )
         ax.set_title(f"Cluster {hvs_candidates_name} hvs > {hvs_pm} km/s")
-        fig.savefig(os.path.join(path_project, f"cluster_{hvs_candidates_name}_hvs_{hvs_pm}.png"))
+        StorageObjectFigures.save(
+            path=os.path.join(path_project, f"cluster_{hvs_candidates_name}_hvs_{hvs_pm}"),
+            value=fig,
+        )
         return fig, ax
 
     def plot_cmd(
@@ -303,6 +307,8 @@ class AstroObjectProject:
             if legend:
                 plt.legend()
             ax.set_title(f"CMD with {hvs_candidates_name} hvs > {hvs_pm} km/s")
-            fig.savefig(os.path.join(path_project, f"cmd_hvs_{hvs_pm}.png"))
+            StorageObjectFigures.save(
+                path=os.path.join(path_project, f"cmd_hvs_{hvs_pm}"), value=fig
+            )
             return fig, ax
         raise RuntimeError("Genera un clustering antes de ejecutar este método.")
