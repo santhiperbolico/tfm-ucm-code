@@ -20,7 +20,6 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] [%(asctime)s] %(message)s")
     args = get_params(sys.argv[1:])
 
-    # Autenticación en Google Cloud
     project_id = os.getenv("PROJECT_ID")
     bucket_name = os.getenv("BUCKET")
     folder = "raw_data/"
