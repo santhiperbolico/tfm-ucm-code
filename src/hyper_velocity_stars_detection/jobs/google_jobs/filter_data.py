@@ -56,6 +56,4 @@ if __name__ == "__main__":
                 upload_folder_to_gcs(project_id, bucket_name, path_temp, name)
                 os.remove(local_path)
 
-        logging.info(f"Borrando {file_name} del bucket...")
-        blob.delete()
-        logging.info(f"{file_name} procesado y eliminado.\n")
+        logging.info(f"{file_name} procesado.\n")
