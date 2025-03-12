@@ -265,6 +265,7 @@ def get_argument_parser() -> argparse.ArgumentParser:
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", default="data/globular_clusters/")
+    parser.add_argument("--raw_folder", default="raw_data/")
     parser.add_argument("--pm_kms", default=50)
     return parser
 

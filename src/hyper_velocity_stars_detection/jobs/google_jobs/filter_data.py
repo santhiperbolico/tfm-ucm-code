@@ -22,7 +22,7 @@ if __name__ == "__main__":
 
     project_id = os.getenv("PROJECT_ID")
     bucket_name = os.getenv("BUCKET")
-    folder = "raw_data/"
+    folder = args.raw_folder
     pm_kms = args.pm_kms
     client = storage.Client(project=project_id)
     bucket = client.bucket(bucket_name)
@@ -39,20 +39,20 @@ if __name__ == "__main__":
             logging.info(f"Descargando {file_name} desde {folder}...")
             name = file_name.split("_")[1]
             radio_scale = int(file_name.split("_")[2].replace("r", "").replace(".vot", ""))
-            name_blobs = list(bucket.list_blobs(prefix=name))
-            if len(name_blobs) < 2:
-                blob.download_to_filename(local_path)
-                astro_object = AstroObject.get_object(name)
-                _ = astro_object.read_object(temp_path, file_name)
-                pm_kms = None
-                if radio_scale > 1:
-                    pm_kms = args.pm_kms
-                astro_data = AstroObjectData.load_data_from_object(
-                    astro_object, radio_scale, pmra_kms_min=pm_kms, pmdec_kms_min=pm_kms
-                )
-                path_temp = os.path.join(temp_path, name)
-                astro_data.save(path_temp)
-                upload_folder_to_gcs(project_id, bucket_name, path_temp, name)
-                os.remove(local_path)
 
-        logging.info(f"{file_name} procesado.\n")
+            blob.download_to_filename(local_path)
+            astro_object = AstroObject.get_object(name)
+            _ = astro_object.read_object(temp_path, file_name)
+            pm_kms = None
+            if radio_scale > 1:
+                pm_kms = args.pm_kms
+            astro_data = AstroObjectData.load_data_from_object(
+                astro_object, radio_scale, pmra_kms_min=pm_kms, pmdec_kms_min=pm_kms
+            )
+            path_temp = os.path.join(temp_path, name)
+            astro_data.save(path_temp)
+            upload_folder_to_gcs(project_id, bucket_name, path_temp, name)
+            os.remove(local_path)
+
+        blob.delete()
+        logging.info(f"{file_name} procesado y borrado.\n")
