@@ -14,6 +14,7 @@ from hyper_velocity_stars_detection.astrobjects import (
     AstroObjectProject,
 )
 from hyper_velocity_stars_detection.sources.catalogs import CatalogsType
+from hyper_velocity_stars_detection.sources.xray_source import XSource
 
 
 @attrs(auto_attribs=True)
@@ -135,16 +136,18 @@ def test_astroobject_data_save_load_from_zip(storage_class_mock, astro_object):
 def test_astroobject_project_save_load_from_zip(
     xsource_class_mock, astro_object_class_mock, storage_class_mock, astro_object
 ):
-    xsource = pd.read_csv("tests/test_data/xsource.csv")
+    xsource_class_mock.download_data.return_value = pd.read_csv("tests/test_data/xsource.csv")
     storage_class_mock.load.return_value = Table.read("tests/test_data/result_gaia.fits")
     astro_object_class_mock.get_object.return_value = astro_object
-    xsource_class_mock.download_data.return_value = xsource
+
     _ = astro_object.read_object("path_dir", "file.vot")
     data_list = [
         AstroObjectData.load_data_from_object(astro_object, radio_scale=1),
         AstroObjectData.load_data_from_object(astro_object, radio_scale=2),
     ]
     with TemporaryDirectory() as tmp_dir:
+        xsource = XSource(tmp_dir)
+        xsource.results = pd.read_csv("tests/test_data/xsource.csv")
         project = AstroObjectProject(astro_object, tmp_dir, data_list, xsource)
         project.save_project()
         new_project = AstroObjectProject.load_project(astro_object.name, tmp_dir)

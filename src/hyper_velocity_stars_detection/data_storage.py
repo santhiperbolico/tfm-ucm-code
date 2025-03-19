@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 from typing import Any, Dict, Mapping, Optional
 from zipfile import ZipFile
 
+import matplotlib.pyplot as plt
 import pandas as pd
 from astropy.table import Table
 from attr import attrs
@@ -144,6 +145,46 @@ class StorageObjectTableVotable(StorageObject):
             Objeto cargado
         """
         return Table.read(path, format="votable")
+
+
+@attrs(auto_attribs=True)
+class StorageObjectFigures(StorageObject):
+    """
+    Serializador de Table de astropy que usa vot como backend.
+    """
+
+    @staticmethod
+    def save(path: str, value: plt.Figure) -> None:
+        """
+        Método de guardado del elemento en png y pkl.
+
+        Parameters
+        ----------
+        path: str
+            Ruta completa donde se quiere almacenar el archivo.
+        value: plt.Figure
+        """
+        value.savefig(path + ".png")
+        with open(path, "wb") as path_handle:
+            pickle.dump(value, path_handle)
+
+    @staticmethod
+    def load(path: str) -> Table:
+        """
+        Método que carga el elemento.
+
+        Parameters
+        ----------
+        path: str
+            Ruta del archivo.
+
+        Returns
+        -------
+        object: Table
+            Objeto cargado
+        """
+        with open(path, "rb") as path_handle:
+            return pickle.load(path_handle)
 
 
 @attrs(auto_attribs=True, frozen=True)

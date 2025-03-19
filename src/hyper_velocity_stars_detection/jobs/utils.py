@@ -7,8 +7,13 @@ from typing import Optional
 import pandas as pd
 from attr import attrs
 
+from hyper_velocity_stars_detection.astrobjects import AstroObjectProject
 from hyper_velocity_stars_detection.sources.catalogs import CatalogsType
 from hyper_velocity_stars_detection.sources.source import AstroObject
+
+
+class ProjectDontExist(Exception):
+    pass
 
 
 @attrs(auto_attribs=True)
@@ -17,6 +22,35 @@ class Cluster:
     radio_scale: float
     filter_parallax_min: Optional[float] = None
     filter_parallax_max: Optional[float] = None
+
+
+def load_project(cluster_name: str, path: str) -> AstroObjectProject:
+    """
+    Función que descarga o carga desde la cache los datos limpios en un proyecto.
+
+    Parameters
+    ----------
+    cluster_name: str,
+        Nombre del cluster
+    path: str
+        Ruta donde se quiere guardar los archivos.
+
+    Returns
+    -------
+    project: AstroObjectProject
+        Proyecto donde se guardan los resultados.
+    """
+    path_project = os.path.join(path, cluster_name)
+    if os.path.exists(path_project):
+        zip_f = [file for file in os.listdir(path_project) if ".zip" == file[-4:]]
+        if len(zip_f) > 0:
+            project = AstroObjectProject.load_project(cluster_name, path)
+            logging.info("Cargando primer catálogo")
+            logging.info(str(project.data_list[0]))
+            logging.info("Cargando segundo catálogo")
+            logging.info(str(project.data_list[1]))
+            return project
+    raise ProjectDontExist("No hay datos descargados del proyecto")
 
 
 def download_object(
@@ -214,8 +248,9 @@ def read_catalog_file(filepath: str) -> list[Cluster]:
     names = df.ID.str.lower().to_list()
     clusters_list = []
     for name in names:
-        cluster = Cluster(name, 6, 0, 1)
-        clusters_list.append(cluster)
+        if name != "":
+            cluster = Cluster(name, 6, 0, 1)
+            clusters_list.append(cluster)
     return clusters_list
 
 
@@ -230,6 +265,7 @@ def get_argument_parser() -> argparse.ArgumentParser:
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", default="data/globular_clusters/")
+    parser.add_argument("--raw_folder", default="raw_data/")
     parser.add_argument("--pm_kms", default=50)
     return parser
 
