@@ -1,0 +1,156 @@
+import os.path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
+
+import numpy as np
+import pandas as pd
+import pytest
+from astropy.table.table import Table
+from attr import attrs
+
+from hyper_velocity_stars_detection.astrobjects import (
+    AstroObject,
+    AstroObjectData,
+    AstroObjectProject,
+)
+from hyper_velocity_stars_detection.sources.catalogs import CatalogsType
+from hyper_velocity_stars_detection.sources.xray_source import XSource
+
+
+@attrs(auto_attribs=True)
+class GlobularCluster:
+    name: str
+    ra: float
+    dec: float
+
+
+@pytest.fixture
+def cluster():
+    return GlobularCluster("ngc 104", 6.02363, -72.08128)
+
+
+@pytest.fixture
+@patch("hyper_velocity_stars_detection.sources.utils.Heasarc", autospec=True)
+def astro_object(heasarc_class_mock, cluster):
+    heasarc_mock = heasarc_class_mock.return_value
+    heasarc_mock.query_object.return_value = Table.read("tests/test_data/result_heasarc.fits")
+    astro_object = AstroObject.get_object(cluster.name)
+    return astro_object
+
+
+def test_astroobject_get_object(astro_object, cluster):
+    assert isinstance(astro_object, AstroObject)
+    assert astro_object.coord.ra.value == pytest.approx(cluster.ra, abs=1e-2)
+    assert astro_object.coord.dec.value == pytest.approx(cluster.dec, abs=1e-2)
+
+
+@pytest.mark.parametrize("radius_type", ["vision_fold_radius"])
+@patch("hyper_velocity_stars_detection.sources.catalogs.Gaia", autospec=True)
+@patch("astroquery.utils.tap.model.job.Job", autospec=True)
+@patch("hyper_velocity_stars_detection.sources.utils.Heasarc", autospec=True)
+def test_astroobject_download_object(
+    heasarc_class_mock, job_class_mock, gaia_class_mock, radius_type, astro_object, cluster
+):
+    heasarc_mock = heasarc_class_mock.return_value
+    heasarc_mock.query_object.return_value = Table.read("tests/test_data/result_heasarc.fits")
+    job_mock = job_class_mock.return_value
+    job_mock.get_results.return_value = Table.read("tests/test_data/result_gaia.fits")
+    gaia_class_mock.launch_job_async.return_value = job_mock
+
+    astro_object = AstroObject.get_object(cluster.name)
+    df_result = astro_object.download_object(
+        CatalogsType.GAIA_DR3, radius_scale=1, radius_type=radius_type
+    )
+    assert isinstance(df_result, pd.DataFrame)
+    assert df_result.shape[0] == 50
+
+
+@pytest.mark.parametrize(
+    "file_to_read, catalog_name, radius_scale",
+    [
+        ("data_file.vot", None, None),
+        (None, CatalogsType.GAIA_DR3, 1.0),
+    ],
+)
+@patch("hyper_velocity_stars_detection.sources.catalogs.StorageObjectTableVotable", autospec=True)
+def test_astroobject_read_object(
+    storage_class_mock, file_to_read, catalog_name, radius_scale, astro_object
+):
+    storage_class_mock.load.return_value = Table.read("tests/test_data/result_gaia.fits")
+    df_result = astro_object.read_object("path_dir", file_to_read, catalog_name, radius_scale)
+    assert isinstance(df_result, pd.DataFrame)
+    assert df_result.shape[0] == 50
+
+
+@patch("hyper_velocity_stars_detection.sources.catalogs.StorageObjectTableVotable", autospec=True)
+def test_astroobject_copy_set_extra_metrics(storage_class_mock, astro_object):
+    storage_class_mock.load.return_value = Table.read("tests/test_data/result_gaia.fits")
+    _ = astro_object.read_object("path_dir", "file.vot")
+    df_data = astro_object.set_extra_metrics()
+    columns = ["pmra_kms", "pmdec_kms", "pm_kms", "pm", "pm_l", "pm_b", "uwe", "ruwe"]
+    assert isinstance(df_data, pd.DataFrame)
+    assert np.array(col in df_data.columns for col in columns).all()
+
+
+@patch("hyper_velocity_stars_detection.sources.catalogs.StorageObjectTableVotable", autospec=True)
+def test_astroobject_qualify_data(storage_class_mock, astro_object):
+    storage_class_mock.load.return_value = Table.read("tests/test_data/result_gaia.fits")
+    _ = astro_object.read_object("path_dir", "file.vot")
+    result = astro_object.qualify_data()
+    columns = ["pmra_kms", "pmdec_kms", "pm_kms", "pm", "pm_l", "pm_b", "uwe", "ruwe"]
+    for df_data in result:
+        assert isinstance(df_data, pd.DataFrame)
+        assert np.array(col in df_data.columns for col in columns).all()
+
+
+@patch("hyper_velocity_stars_detection.sources.catalogs.StorageObjectTableVotable", autospec=True)
+def test_astroobject_data_load_from_object(storage_class_mock, astro_object):
+    storage_class_mock.load.return_value = Table.read("tests/test_data/result_gaia.fits")
+    _ = astro_object.read_object("path_dir", "file.vot")
+    data = AstroObjectData.load_data_from_object(astro_object, radio_scale=1)
+    columns = ["pmra_kms", "pmdec_kms", "pm_kms", "pm", "pm_l", "pm_b", "uwe", "ruwe"]
+    for key, df_data in data.data.items():
+        assert isinstance(df_data, pd.DataFrame)
+        assert np.array(col in df_data.columns for col in columns).all()
+
+    assert len(data.data) == 4
+
+
+@patch("hyper_velocity_stars_detection.sources.catalogs.StorageObjectTableVotable", autospec=True)
+def test_astroobject_data_save_load_from_zip(storage_class_mock, astro_object):
+    storage_class_mock.load.return_value = Table.read("tests/test_data/result_gaia.fits")
+    _ = astro_object.read_object("path_dir", "file.vot")
+    data = AstroObjectData.load_data_from_object(astro_object, radio_scale=1)
+    with TemporaryDirectory() as tmp_dir:
+        file = os.path.join(tmp_dir, data.data_name) + ".zip"
+        data.save(tmp_dir)
+        new_data = AstroObjectData.load(file)
+
+    assert len(new_data.data) == 4
+    assert new_data.data_name == data.data_name
+
+
+@patch("hyper_velocity_stars_detection.sources.catalogs.StorageObjectTableVotable", autospec=True)
+@patch("hyper_velocity_stars_detection.astrobjects.AstroObject", autospec=True)
+@patch("hyper_velocity_stars_detection.astrobjects.XSource", autospec=True)
+def test_astroobject_project_save_load_from_zip(
+    xsource_class_mock, astro_object_class_mock, storage_class_mock, astro_object
+):
+    xsource_class_mock.download_data.return_value = pd.read_csv("tests/test_data/xsource.csv")
+    storage_class_mock.load.return_value = Table.read("tests/test_data/result_gaia.fits")
+    astro_object_class_mock.get_object.return_value = astro_object
+
+    _ = astro_object.read_object("path_dir", "file.vot")
+    data_list = [
+        AstroObjectData.load_data_from_object(astro_object, radio_scale=1),
+        AstroObjectData.load_data_from_object(astro_object, radio_scale=2),
+    ]
+    with TemporaryDirectory() as tmp_dir:
+        xsource = XSource(tmp_dir)
+        xsource.results = pd.read_csv("tests/test_data/xsource.csv")
+        project = AstroObjectProject(astro_object, tmp_dir, data_list, xsource)
+        project.save_project()
+        new_project = AstroObjectProject.load_project(astro_object.name, tmp_dir)
+
+    assert len(new_project.data_list) == 2
+    assert new_project.astro_object.name == project.astro_object.name
