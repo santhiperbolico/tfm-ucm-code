@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from attr import attrib, attrs
 
-from hyper_velocity_stars_detection.data_storage import StorageObjectFigures
+from hyper_velocity_stars_detection.data_storage import InvalidFileFormat, StorageObjectFigures
 from hyper_velocity_stars_detection.sources.source import AstroObject, AstroObjectData, get_radio
 from hyper_velocity_stars_detection.sources.xray_source import XSource
 from hyper_velocity_stars_detection.tools.cluster_detection import (
@@ -27,7 +27,7 @@ class AstroObjectProject:
     astro_object = attrib(type=AstroObject, init=True)
     path = attrib(type=str, init=True)
     data_list = attrib(type=list[AstroObjectData], init=True)
-    xsource = attrib(type=pd.DataFrame, init=True)
+    xsource = attrib(type=XSource, init=True)
     clustering_results = attrib(type=ClusteringResults, init=True, default=None)
 
     def __str__(self) -> str:
@@ -37,10 +37,14 @@ class AstroObjectProject:
         description = f"Las muestras analizadas de {self.astro_object.name} son:\n"
         for data in self.data_list:
             description += str(data) + "\n"
-        description += f"Se han encontrado {self.xsource.shape[0]} fuentes de rayos X.\n"
+        description += f"Se han encontrado {self.xsource.results.shape[0]} fuentes de rayos X.\n"
         if isinstance(self.clustering_results, ClusteringResults):
             description += str(self.clustering_results)
         return description
+
+    @property
+    def path_project(self) -> str:
+        return os.path.join(self.path, self.astro_object.name)
 
     @classmethod
     def load_project(cls, name: str, path: str) -> "AstroObjectProject":
@@ -74,11 +78,12 @@ class AstroObjectProject:
         ra = astro_object.coord.ra.value
         dec = astro_object.coord.dec.value
         radius = get_radio(astro_object.info, 1)
+        xsource = XSource(path_project)
         try:
-            xsource = XSource.load(path_project)
-        except (FileNotFoundError, IsADirectoryError):
+            xsource.load()
+        except (FileNotFoundError, IsADirectoryError, InvalidFileFormat):
             logging.info("No se ha encontrado fuentes de rayos X, se van a descargar.")
-            xsource = XSource.download_data(ra, dec, radius)
+            xsource.download_data(ra, dec, radius)
 
         try:
             clustering_result = ClusteringResults.load(path_project)
@@ -97,20 +102,19 @@ class AstroObjectProject:
         path: Optional[str], default None
             Directorio donde se quiere guardar el proyecto
         """
-        if path is None:
-            path = self.path
+        if path is not None:
+            self.path = path
 
-        path_project = os.path.join(path, self.astro_object.name)
-        if not os.path.exists(path_project):
-            os.mkdir(path_project)
+        if not os.path.exists(self.path_project):
+            os.mkdir(self.path_project)
 
         for data in self.data_list:
-            data.save(path=path_project)
+            data.save(path=self.path_project)
 
-        XSource.save(path_project, self.xsource)
+        self.xsource.save(self.path_project)
 
         if isinstance(self.clustering_results, ClusteringResults):
-            self.clustering_results.save(path_project)
+            self.clustering_results.save(self.path_project)
 
     def get_data(self, data_name: str, index_data: Optional[int] = None) -> pd.DataFrame:
         """
@@ -217,10 +221,9 @@ class AstroObjectProject:
         ax: Axes
             Eje de la figura.
         """
-        path_project = os.path.join(self.path, self.astro_object.name)
         df_hvs_candidates = self.get_data(hvs_candidates_name, index_hvs_candidates)
         df_gc = self.clustering_results.gc
-        df_source_x = self.xsource
+        df_source_x = self.xsource.results
         fig, ax = cluster_representation_with_hvs(
             df_gc=df_gc,
             df_hvs_candidates=df_hvs_candidates,
@@ -231,7 +234,7 @@ class AstroObjectProject:
         )
         ax.set_title(f"Cluster {hvs_candidates_name} hvs > {hvs_pm} km/s")
         StorageObjectFigures.save(
-            path=os.path.join(path_project, f"cluster_{hvs_candidates_name}_hvs_{hvs_pm}"),
+            path=os.path.join(self.path_project, f"cluster_{hvs_candidates_name}_hvs_{hvs_pm}"),
             value=fig,
         )
         return fig, ax
@@ -282,7 +285,6 @@ class AstroObjectProject:
         ax: Axes
             Eje de la gráfica.
         """
-        path_project = os.path.join(self.path, self.astro_object.name)
         df_hvs_candidates = self.get_data(hvs_candidates_name, index_hvs_candidates)
         selected = self.clustering_results.selected_hvs(df_hvs_candidates, factor_sigma, hvs_pm)
 
@@ -308,7 +310,7 @@ class AstroObjectProject:
                 plt.legend()
             ax.set_title(f"CMD with {hvs_candidates_name} hvs > {hvs_pm} km/s")
             StorageObjectFigures.save(
-                path=os.path.join(path_project, f"cmd_hvs_{hvs_pm}"), value=fig
+                path=os.path.join(self.path_project, f"cmd_hvs_{hvs_pm}"), value=fig
             )
             return fig, ax
         raise RuntimeError("Genera un clustering antes de ejecutar este método.")

@@ -12,3 +12,7 @@ if __name__ == "__main__":
     selected_clusters = read_catalog_file(os.path.join(args.path, "mwgc.dat.txt"))
     for cluster in selected_clusters:
         project = load_project(cluster_name=cluster.name, path=args.path)
+        logging.info(str(project))
+        logging.info("-- Descargando curvas de luz")
+        project.xsource.download_light_curves(project.path_project)
+        project.xsource.save()
