@@ -139,6 +139,7 @@ class XSource:
         """
         if path is None:
             path = self.path_xsource
+        os.makedirs(self.path_xsource, exist_ok=True)
         shutil.make_archive(path, "zip", self.path_xsource)
 
     def load(self, path: Optional[str] = None):
