@@ -224,7 +224,7 @@ class AstroObjectProject:
         df_hvs_candidates = self.get_data(hvs_candidates_name, index_hvs_candidates)
         df_gc = self.clustering_results.gc
         df_source_x = self.xsource.results
-        df_source_x = df_source_x[~df_source_x.main_id.isna()]
+        df_source_x = df_source_x[df_source_x.main_id == self.astro_object.main_id]
         fig, ax = cluster_representation_with_hvs(
             df_gc=df_gc,
             df_hvs_candidates=df_hvs_candidates,

@@ -35,7 +35,8 @@ def get_main_id(name: str) -> str | None:
     try:
         result = Simbad.query_object(name)
         if result:
-            return result["MAIN_ID"][0]
+            main_id = "_".join(result["MAIN_ID"][0].split())
+            return main_id
     except Exception as e:
         logging.info(f"Error con {name}: {e}")
     return None
