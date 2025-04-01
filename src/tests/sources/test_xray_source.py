@@ -61,7 +61,7 @@ def test_xcatalog_download_data(heasarc_class_mock, mission, columns, expected_s
 @pytest.mark.parametrize("name, expected", [("NGC 104", "NGC_104"), ("47 TUC", "NGC_104")])
 @patch("hyper_velocity_stars_detection.sources.xray_source.Simbad", autospec=True)
 def test_get_main_id(simbad_class_mock, name, expected, cluster):
-    simbad_class_mock.query_object.return_value = Table.read("tests/test_data/result_simbad.vot")
+    simbad_class_mock.query_object.return_value = Table.read("tests/test_data/result_simbad.txt")
     result = get_main_id(name)
     assert result == expected
 
