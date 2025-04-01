@@ -111,6 +111,7 @@ class AstroObjectProject:
         for data in self.data_list:
             data.save(path=self.path_project)
 
+        # TODO: Comprobar si se está guardando bien y cargando bien, parece que no.
         self.xsource.save(self.path_project)
 
         if isinstance(self.clustering_results, ClusteringResults):

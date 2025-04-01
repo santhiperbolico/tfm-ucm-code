@@ -48,6 +48,7 @@ def get_obs_id(obs_ids: list[str | int]) -> list[str]:
     """
     list_ids = []
     for obs_id in obs_ids:
+        obs_id = str(obs_id)
         n_id = len(obs_id)
         if n_id < 10:
             obs_id = "".join(["0"] * int(10 - n_id)) + obs_id
@@ -93,9 +94,13 @@ class XCatalog:
         results = query_res.to_pandas()
         object_cols = results.select_dtypes([object]).columns
         results[object_cols] = results[object_cols].astype(str)
+
         results = results.rename(
             columns=dict(zip(self.searched_columns, list(self.format_columns.keys())))
         )
+        if results.empty:
+            results = pd.DataFrame(columns=list(self.format_columns.keys()))
+
         for column, col_type in self.format_columns.items():
             results[column] = results[column].astype(col_type)
 
