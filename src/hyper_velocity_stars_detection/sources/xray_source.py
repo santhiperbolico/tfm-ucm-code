@@ -8,10 +8,37 @@ import astropy.units as u
 import pandas as pd
 from astropy.coordinates import SkyCoord
 from astroquery.heasarc import Heasarc
+from astroquery.simbad import Simbad
 from attr import attrib, attrs
 
 from hyper_velocity_stars_detection.data_storage import InvalidFileFormat, StorageObjectPandasCSV
 from hyper_velocity_stars_detection.sources.lightcurves import LightCurve
+
+Simbad.TIMEOUT = 300
+Simbad.ROW_LIMIT = 1
+
+
+def get_main_id(name: str) -> str | None:
+    """
+    Función que extrae un  identificador único del objeto. Si no lo encuentra devuelve None.
+
+    Parameters
+    ----------
+    name: str
+        Nombre a buscar.
+
+    Returns
+    -------
+    main_id: str | None
+        Devuelve el identificador si lo encuentra
+    """
+    try:
+        result = Simbad.query_object(name)
+        if result:
+            return result["MAIN_ID"][0]
+    except Exception as e:
+        logging.info(f"Error con {name}: {e}")
+    return None
 
 
 def get_obs_id(obs_ids: list[str | int]) -> list[str]:
@@ -72,10 +99,15 @@ class XCatalog:
             results[column] = results[column].astype(col_type)
 
         results.insert(0, "mission", self.mission)
+        results.insert(1, "main_id", results.name.apply(get_main_id))
         return results
 
 
 class XCatalogParams:
+    """
+    Clase que recoge el nombre de la misión y las columnas a extraer usando Heasarc.
+    """
+
     XMNNEWTON = (
         "xmmmaster",
         [
