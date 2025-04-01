@@ -93,3 +93,16 @@ def test_xsource_save_load(heasarc_class_mock, cluster):
         xsource_new.load()
         assert os.path.exists(os.path.join(temp_dir, "xsource.zip"))
     assert xsource.results.shape == (37, 13)
+
+
+@patch("hyper_velocity_stars_detection.sources.xray_source.Heasarc", autospec=True)
+def test_xsource_save_load_from_path(heasarc_class_mock, cluster):
+    heasarc_class_mock.query_region.side_effect = query_region_side_effect
+    with TemporaryDirectory() as temp_dir:
+        xsource = XSource(temp_dir)
+        xsource.download_data(cluster.coords, cluster.radius)
+        xsource.save(temp_dir)
+        xsource_new = XSource(temp_dir)
+        xsource_new.load(temp_dir)
+        assert os.path.exists(os.path.join(temp_dir, "xsource.zip"))
+    assert xsource.results.shape == (37, 13)

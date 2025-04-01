@@ -171,10 +171,6 @@ class XSource:
             df_c = catalog.download_data(coords, radius)
             self.results = pd.concat((self.results, df_c))
 
-        os.makedirs(self.path_xsource, exist_ok=True)
-        path_file = os.path.join(self.path_xsource, "xsource_data")
-        StorageObjectPandasCSV().save(path_file, self.results)
-
     def download_light_curves(self, cache: bool = False):
         """
         Método que descarga las curvas de luz de las observaciones en rayos X asociadas
@@ -205,9 +201,12 @@ class XSource:
             Ruta donde para guardar los datos. Por defecto se usa la establecida.
         """
         if path is None:
-            path = self.path_xsource
+            path = self.path
+        path_xsource = os.path.join(path, "xsource")
         os.makedirs(self.path_xsource, exist_ok=True)
-        shutil.make_archive(path, "zip", self.path_xsource)
+        path_file = os.path.join(self.path_xsource, "xsource_data")
+        StorageObjectPandasCSV().save(path_file, self.results)
+        shutil.make_archive(path_xsource, "zip", self.path_xsource)
 
     def load(self, path: Optional[str] = None):
         """
@@ -218,17 +217,14 @@ class XSource:
         path: Optional[str], default None
             Ruta donde para guardar los datos. Por defecto se usa la establecida.
         """
-        path_zip = self.path_xsource + ".zip"
-
         if path is None:
-            path = path_zip
+            path = self.path
+        path_zip = os.path.join(path, "xsource.zip")
 
-        with ZipFile(path, "r") as zip_instance:
+        with ZipFile(path_zip, "r") as zip_instance:
             if zip_instance.testzip() is not None:
-                raise InvalidFileFormat(f"El archivo '{path}' no es un archivo zip válido")
-
+                raise InvalidFileFormat(f"El archivo '{path_zip}' no es un archivo zip válido")
             zip_instance.extractall(self.path_xsource)
-
         path_file = os.path.join(self.path_xsource, "xsource_data.csv")
         self.results = StorageObjectPandasCSV().load(path_file)
         return self.results
