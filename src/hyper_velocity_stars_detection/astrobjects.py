@@ -54,6 +54,8 @@ class AstroObjectProject:
 
         Parameters
         ----------
+        name: str
+            Nombre del objeto de estudio.
         path: str
             Directorio donde se encuentran los archivos zip con las muestras.
             El nombre de la carpeta que contiene los zip debe ser el del objeto o proyecto.
@@ -75,15 +77,13 @@ class AstroObjectProject:
             data_list.append(AstroObjectData.load(file_path))
 
         astro_object = AstroObject.get_object(name)
-        ra = astro_object.coord.ra.value
-        dec = astro_object.coord.dec.value
         radius = get_radio(astro_object.info, 1)
         xsource = XSource(path_project)
         try:
             xsource.load()
         except (FileNotFoundError, IsADirectoryError, InvalidFileFormat):
             logging.info("No se ha encontrado fuentes de rayos X, se van a descargar.")
-            xsource.download_data(ra, dec, radius)
+            xsource.download_data(astro_object.coord, radius)
 
         try:
             clustering_result = ClusteringResults.load(path_project)

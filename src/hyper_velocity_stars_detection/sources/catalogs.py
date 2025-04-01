@@ -2,7 +2,6 @@ import logging
 from typing import Optional
 
 import pandas as pd
-from astroquery.esa.xmm_newton import XMMNewton
 from astroquery.gaia import Gaia
 from attr import attrib, attrs
 
@@ -14,16 +13,9 @@ class CatalogsType:
     GAIA_DR3 = "gaiadr3"
 
 
-class XSourceType:
-    XMMNEWTON = "XMMNewton"
-
-
 class CatalogsTables:
     GAIA_DR2 = "gaiadr2.gaia_source"
     GAIA_DR3 = "gaiadr3.gaia_source"
-
-
-XSOURCES = {XSourceType.XMMNEWTON: XMMNewton}
 
 
 class CatalogError(Exception):
