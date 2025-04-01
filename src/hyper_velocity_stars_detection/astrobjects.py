@@ -1,6 +1,9 @@
 import logging
 import os
+import shutil
+from tempfile import TemporaryDirectory
 from typing import Any, Optional
+from zipfile import ZipFile
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -47,14 +50,51 @@ class AstroObjectProject:
         return os.path.join(self.path, self.astro_object.name)
 
     @classmethod
-    def load_project(cls, name: str, path: str) -> "AstroObjectProject":
+    def load_project(cls, name: str, path: str, from_zip: bool = False) -> "AstroObjectProject":
         """
         Método que carga los datos de las muestras seleccionadas para un proyecto
         asociado a un objeto astronómico.
 
         Parameters
         ----------
+        name: str
+            Nombre del objeto de estudio.
         path: str
+            Directorio donde se encuentran los archivos zip con las muestras.
+            El nombre de la carpeta que contiene los zip debe ser el del objeto o proyecto.
+        from_zip: bool = False
+            Indica si se quiere cargar desde zip.
+
+        Returns
+        -------
+        object: AstroObjectProject
+            Objeto asociado al proyecto.
+        """
+        path_data = os.path.join(path, name)
+        if not from_zip:
+            return cls._load_project(path, name, path_data)
+
+        zip_file = os.path.join(path, f"{name}.zip")
+        with ZipFile(zip_file, "r") as zip_instance:
+            if zip_instance.testzip() is not None:
+                raise InvalidFileFormat(f"El archivo '{path}' no es un archivo zip válido")
+            with TemporaryDirectory() as temp_path:
+                zip_instance.extractall(temp_path)
+                return cls._load_project(temp_path, name, temp_path)
+
+    @classmethod
+    def _load_project(cls, path: str, name: str, path_data: str) -> "AstroObjectProject":
+        """
+        Método que carga los datos de las muestras seleccionadas para un proyecto
+        asociado a un objeto astronómico.
+
+        Parameters
+        ----------
+        name: str
+            Nombre del objeto de estudio.
+        path: str
+            Directorio que queremos asociar al proyecto.
+        path_data: str
             Directorio donde se encuentran los archivos zip con las muestras.
             El nombre de la carpeta que contiene los zip debe ser el del objeto o proyecto.
 
@@ -65,34 +105,32 @@ class AstroObjectProject:
         """
         path_project = os.path.join(path, name)
         zip_files = [
-            file for file in os.listdir(path_project) if ".zip" == file[-4:] and name in file
+            file for file in os.listdir(path_data) if ".zip" == file[-4:] and name in file
         ]
         zip_files.sort()
         data_list = []
 
         for file in zip_files:
-            file_path = os.path.join(path_project, file)
+            file_path = os.path.join(path_data, file)
             data_list.append(AstroObjectData.load(file_path))
 
         astro_object = AstroObject.get_object(name)
-        ra = astro_object.coord.ra.value
-        dec = astro_object.coord.dec.value
         radius = get_radio(astro_object.info, 1)
         xsource = XSource(path_project)
         try:
-            xsource.load()
+            xsource.load(path_data)
         except (FileNotFoundError, IsADirectoryError, InvalidFileFormat):
             logging.info("No se ha encontrado fuentes de rayos X, se van a descargar.")
-            xsource.download_data(ra, dec, radius)
+            xsource.download_data(astro_object.coord, radius)
 
         try:
-            clustering_result = ClusteringResults.load(path_project)
+            clustering_result = ClusteringResults.load(path_data)
         except (FileNotFoundError, IsADirectoryError):
             clustering_result = None
             logging.info("No se ha encontrado resultados de clustering en el proyecto.")
         return cls(astro_object, path, data_list, xsource, clustering_result)
 
-    def save_project(self, path: Optional[str] = None):
+    def save_project(self, path: Optional[str] = None, to_zip: bool = False):
         """
         Método que guarda los resultados de un proyecto en el directorio path dentro de la
         carpeta <name>.
@@ -101,20 +139,37 @@ class AstroObjectProject:
         ----------
         path: Optional[str], default None
             Directorio donde se quiere guardar el proyecto
+        to_zip: bool
+            Indica si se quiere guardar en formato zip.
         """
-        if path is not None:
-            self.path = path
+        if path is None:
+            path = self.path
 
-        if not os.path.exists(self.path_project):
-            os.mkdir(self.path_project)
+        path_project = os.path.join(path, self.astro_object.name)
+
+        self._save_project(path_project)
+        if to_zip:
+            shutil.make_archive(path_project, "zip", path_project)
+
+    def _save_project(self, path_project) -> None:
+        """
+        Método que guarda los datos del proyecto en el path_project.
+
+        Parameters
+        ----------
+        path_project: str
+            Ruta con los datos del proyecto.
+        """
+        if not os.path.exists(path_project):
+            os.mkdir(path_project)
 
         for data in self.data_list:
-            data.save(path=self.path_project)
+            data.save(path=path_project)
 
-        self.xsource.save(self.path_project)
+        self.xsource.save(path_project)
 
         if isinstance(self.clustering_results, ClusteringResults):
-            self.clustering_results.save(self.path_project)
+            self.clustering_results.save(path_project)
 
     def get_data(self, data_name: str, index_data: Optional[int] = None) -> pd.DataFrame:
         """
@@ -224,6 +279,7 @@ class AstroObjectProject:
         df_hvs_candidates = self.get_data(hvs_candidates_name, index_hvs_candidates)
         df_gc = self.clustering_results.gc
         df_source_x = self.xsource.results
+        df_source_x = df_source_x[df_source_x.main_id == self.astro_object.main_id]
         fig, ax = cluster_representation_with_hvs(
             df_gc=df_gc,
             df_hvs_candidates=df_hvs_candidates,
