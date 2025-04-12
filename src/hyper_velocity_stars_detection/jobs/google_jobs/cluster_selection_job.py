@@ -1,21 +1,39 @@
+import argparse
 import logging
 import os
 import sys
 
 from astroquery.simbad import Simbad
+from google.cloud import storage
 from tqdm import tqdm
 
 from hyper_velocity_stars_detection.jobs.google_jobs.utils import (
     download_from_gcs,
     load_save_project,
 )
-from hyper_velocity_stars_detection.jobs.utils import (
-    ProjectDontExist,
-    get_params,
-    read_catalog_file,
-)
+from hyper_velocity_stars_detection.jobs.utils import ProjectDontExist, read_catalog_file
 
 Simbad.SIMBAD_URL = "http://simbad.u-strasbg.fr/simbad/sim-id"
+
+
+def get_params(argv: list[str]) -> argparse.Namespace:
+    """
+    Función que genera los argumentos de download_data.
+
+    Parameters
+    ----------
+    argv: list[str]
+        Lista de argumentos del job.
+
+    Returns
+    -------
+    args: argparse.Namespace
+        Argumentos.
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--path", default="data/globular_clusters/")
+    parser.add_argument("--cache", action=argparse.BooleanOptionalAction)
+    return parser.parse_args(argv)
 
 
 if __name__ == "__main__":
@@ -26,10 +44,21 @@ if __name__ == "__main__":
 
     project_id = os.getenv("PROJECT_ID")
     bucket_name = os.getenv("BUCKET")
-    pm_kms = args.pm_kms
 
     cluster_catalog = download_from_gcs(project_id, bucket_name, "mwgc.dat.txt", args.path)
-    selected_clusters = read_catalog_file(cluster_catalog)
+    all_clusters = read_catalog_file(cluster_catalog)
+    selected_clusters = all_clusters
+    if args.cache:
+        selected_clusters = []
+        logging.info("Uso de la Cache")
+        logging.info("Se van a descargar los datos de los clusters no descargados.")
+        client = storage.Client(project=project_id)
+        bucket = client.bucket(bucket_name)
+        for cluster in all_clusters:
+            blob = bucket.blob(f"{cluster.name}.zip")
+            if not blob.exists():
+                selected_clusters.append(cluster)
+        logging.info("Se van a descargar %i de %i" % (len(selected_clusters), len(all_clusters)))
 
     for cluster in tqdm(selected_clusters, desc="Procesando elementos", unit="item"):
         try:

@@ -5,6 +5,7 @@ from typing import Optional
 from zipfile import ZipFile
 
 import astropy.units as u
+import numpy as np
 import pandas as pd
 from astropy.coordinates import SkyCoord
 from astroquery.heasarc import Heasarc
@@ -102,6 +103,10 @@ class XCatalog:
             results = pd.DataFrame(columns=list(self.format_columns.keys()))
 
         for column, col_type in self.format_columns.items():
+            if results[column].dtype == np.dtype("O"):
+                results[column] = results[column].astype("str").str.strip()
+                results.loc[results[column] == "", column] = None
+
             results[column] = results[column].astype(col_type)
 
         results.insert(0, "mission", self.mission)
