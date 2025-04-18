@@ -116,7 +116,21 @@ def load_save_project(cluster_name: str, project_id: str, bucket_name: str) -> s
         if len(zip_f) > 0:
             project = AstroObjectProject.load_project(cluster_name, temp_path)
             logging.info("\t - Calculando cluster por defecto.")
-            _ = project.cluster_detection(**DefaultParamsClusteringDetection().params)
+            params = DefaultParamsClusteringDetection().params.copy()
+            if project.get_data("df_1_c2").shape[0] < 16000:
+                params["data_name"] = "df_1_c0"
+
+            df_6 = "df_6_c1"
+            if project.get_data("df_6_c1").shape[0] < 18000:
+                df_6 = "df_6_c0"
+
+            _ = project.cluster_detection(**params)
+            _, _ = project.plot_cmd(
+                hvs_candidates_name=df_6, factor_sigma=2.0, hvs_pm=150, legend=True
+            )
+            _, _ = project.plot_cluster(
+                hvs_candidates_name=df_6, factor_sigma=2.0, hvs_pm=150, legend=True
+            )
             project.save_project(to_zip=True)
             blob_path = cluster_name + ".zip"
             path_zip = os.path.join(temp_path, blob_path)

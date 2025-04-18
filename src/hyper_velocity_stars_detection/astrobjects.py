@@ -80,7 +80,7 @@ class AstroObjectProject:
                 raise InvalidFileFormat(f"El archivo '{path}' no es un archivo zip válido")
             with TemporaryDirectory() as temp_path:
                 zip_instance.extractall(temp_path)
-                return cls._load_project(temp_path, name, temp_path)
+                return cls._load_project(path, name, temp_path)
 
     @classmethod
     def _load_project(cls, path: str, name: str, path_data: str) -> "AstroObjectProject":

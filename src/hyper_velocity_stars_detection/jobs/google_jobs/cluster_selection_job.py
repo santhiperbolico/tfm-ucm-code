@@ -3,7 +3,6 @@ import logging
 import os
 import sys
 
-from astroquery.simbad import Simbad
 from google.cloud import storage
 from tqdm import tqdm
 
@@ -12,8 +11,6 @@ from hyper_velocity_stars_detection.jobs.google_jobs.utils import (
     load_save_project,
 )
 from hyper_velocity_stars_detection.jobs.utils import ProjectDontExist, read_catalog_file
-
-Simbad.SIMBAD_URL = "http://simbad.u-strasbg.fr/simbad/sim-id"
 
 
 def get_params(argv: list[str]) -> argparse.Namespace:

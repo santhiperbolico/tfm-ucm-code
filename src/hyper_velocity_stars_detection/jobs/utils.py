@@ -44,7 +44,7 @@ class Cluster:
     filter_parallax_max: Optional[float] = None
 
 
-def load_project(cluster_name: str, path: str) -> AstroObjectProject:
+def load_project(cluster_name: str, path: str, from_zip: bool = False) -> AstroObjectProject:
     """
     Función que descarga o carga desde la cache los datos limpios en un proyecto.
 
@@ -61,15 +61,24 @@ def load_project(cluster_name: str, path: str) -> AstroObjectProject:
         Proyecto donde se guardan los resultados.
     """
     path_project = os.path.join(path, cluster_name)
+    if from_zip and os.path.exists(path_project + ".zip"):
+        project = AstroObjectProject.load_project(cluster_name, path, True)
+        logging.info("Cargando primer catálogo")
+        logging.info(str(project.data_list[0]))
+        logging.info("Cargando segundo catálogo")
+        logging.info(str(project.data_list[1]))
+        return project
+
     if os.path.exists(path_project):
         zip_f = [file for file in os.listdir(path_project) if ".zip" == file[-4:]]
         if len(zip_f) > 0:
-            project = AstroObjectProject.load_project(cluster_name, path)
+            project = AstroObjectProject.load_project(cluster_name, path, False)
             logging.info("Cargando primer catálogo")
             logging.info(str(project.data_list[0]))
             logging.info("Cargando segundo catálogo")
             logging.info(str(project.data_list[1]))
             return project
+
     raise ProjectDontExist("No hay datos descargados del proyecto")
 
 
