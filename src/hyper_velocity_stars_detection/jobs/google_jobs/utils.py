@@ -120,21 +120,48 @@ def load_save_project(cluster_name: str, project_id: str, bucket_name: str) -> s
             if project.get_data("df_1_c2").shape[0] < 16000:
                 params["data_name"] = "df_1_c0"
 
-            df_6 = "df_6_c1"
-            if project.get_data("df_6_c1").shape[0] < 18000:
-                df_6 = "df_6_c0"
-
             _ = project.cluster_detection(**params)
-            _, _ = project.plot_cmd(
-                hvs_candidates_name=df_6, factor_sigma=2.0, hvs_pm=150, legend=True
-            )
-            _, _ = project.plot_cluster(
-                hvs_candidates_name=df_6, factor_sigma=2.0, hvs_pm=150, legend=True
-            )
             project.save_project(to_zip=True)
             blob_path = cluster_name + ".zip"
             path_zip = os.path.join(temp_path, blob_path)
             blob = bucket.blob(blob_path)
             blob.upload_from_filename(path_zip)
             return path_zip
+    raise ProjectDontExist("No hay datos descargados del proyecto")
+
+
+def load_project(
+    cluster_name: str, project_id: str, bucket_name: str, path: str
+) -> AstroObjectProject:
+    """
+    Función que descarga o carga desde la cache los datos limpios en un proyecto.
+
+    Parameters
+    ----------
+    cluster_name: str,
+        Nombre del cluster
+    project_id: str
+        ID del proyecto de GCP
+    bucket_name: str
+        Nombre del bucket de Storage.
+    path: str
+        Ruta donde queremos guardar los datos.
+
+    Returns
+    -------
+    project: AstroObjectProject
+        Proyecto donde se guardan los resultados.
+    """
+    client = storage.Client(project=project_id)
+    bucket = client.bucket(bucket_name)
+
+    logging.info(f"Procesando elemento {cluster_name}")
+
+    file_path = f"{cluster_name}.zip"
+    blob = bucket.blob(blob_name=file_path)
+    if blob.exists():
+        blob.download_to_filename(os.path.join(path, file_path))
+        project = AstroObjectProject.load_project(cluster_name, path, True)
+        return project
+
     raise ProjectDontExist("No hay datos descargados del proyecto")
