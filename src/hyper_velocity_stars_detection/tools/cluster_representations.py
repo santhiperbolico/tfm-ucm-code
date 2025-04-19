@@ -431,16 +431,17 @@ def cluster_representation_with_hvs(
     )
 
     # Marcar las estrellas seleccionadas (ejemplo: aquellas con ciertas condiciones)
-    ax.quiver(
-        selected["l"],
-        selected["b"],
-        (selected["pm_l"] - mean_pm_l) / factor,
-        (selected["pm_b"] - mean_pm_b) / factor,
-        color="blue",
-        scale=5,
-        width=0.003,
-        label="Pre-selected Stars",
-    )
+    if not selected.empty:
+        ax.quiver(
+            selected["l"],
+            selected["b"],
+            (selected["pm_l"] - mean_pm_l) / factor,
+            (selected["pm_b"] - mean_pm_b) / factor,
+            color="blue",
+            scale=5,
+            width=0.003,
+            label="Pre-selected Stars",
+        )
 
     if isinstance(df_source_x, pd.DataFrame):
         ax.scatter(
