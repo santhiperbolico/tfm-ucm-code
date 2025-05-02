@@ -11,11 +11,13 @@ from hyper_velocity_stars_detection.data_storage import StorageObjectTableVotabl
 class CatalogsType:
     GAIA_DR2 = "gaiadr2"
     GAIA_DR3 = "gaiadr3"
+    GAIA_FPR = "gaiafpr"
 
 
 class CatalogsTables:
     GAIA_DR2 = "gaiadr2.gaia_source"
     GAIA_DR3 = "gaiadr3.gaia_source"
+    GAIA_FPR = "gaiafpr.crowded_field_source"
 
 
 class CatalogError(Exception):
@@ -46,6 +48,7 @@ class Catalog:
         dic_types = {
             CatalogsType.GAIA_DR2: CatalogsTables.GAIA_DR2,
             CatalogsType.GAIA_DR3: CatalogsTables.GAIA_DR3,
+            CatalogsType.GAIA_FPR: CatalogsTables.GAIA_FPR,
         }
         try:
             catalog_table = dic_types[catalog_name]
@@ -97,10 +100,10 @@ class Catalog:
         Gaia.ROW_LIMIT = row_limit
 
         filter = f"""
-        WHERE 1=CONTAINS(
+        WHERE CONTAINS(
                POINT('ICRS', ra, dec),
                CIRCLE('ICRS', {ra}, {dec}, {radius})
-               )
+               )=1
         """
         if filter_parallax_max is not None:
             filter = f"{filter} AND parallax < {filter_parallax_max}"
@@ -109,7 +112,7 @@ class Catalog:
         if filter_parallax_error is not None:
             filter = f"{filter} AND parallax_error < {filter_parallax_error}"
 
-        query = f"SELECT * FROM {self.catalog_table} {filter}"
+        query = f"SELECT {self.catalog_table}.* FROM {self.catalog_table} {filter}"
 
         job = Gaia.launch_job_async(
             query, dump_to_file=True, output_format="votable", output_file=f"{output_file}"

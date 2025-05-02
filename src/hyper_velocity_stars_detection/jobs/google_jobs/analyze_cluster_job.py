@@ -3,10 +3,12 @@ import logging
 import os
 import sys
 
+import numpy as np
 import pandas as pd
 from google.cloud import storage
 from tqdm import tqdm
 
+from hyper_velocity_stars_detection.astrobjects import AstroObject, AstroObjectProject
 from hyper_velocity_stars_detection.jobs.google_jobs.utils import download_from_gcs, load_project
 from hyper_velocity_stars_detection.jobs.utils import ProjectDontExist, read_catalog_file
 from hyper_velocity_stars_detection.sources.clusters_catalogs import get_all_cluster_data
@@ -33,7 +35,7 @@ def get_params(argv: list[str]) -> argparse.Namespace:
 
 def extract_globular_cluster(
     cluster_name: str, selected_clusters: list[str]
-) -> pd.DataFrame | None:
+) -> AstroObjectProject | None:
     """
     Función que extrae en el caso de que corresponda las estrellas del cúmulo globular
     encontrado por el método.
@@ -47,13 +49,12 @@ def extract_globular_cluster(
 
     Returns
     -------
-    gc: pd.DataFrame | None
-        Si se detecta que el cúmulo globular ha sido estudiado se devueñve el GC seleccionado.
-        En caso contrario devuelve None.
+    project: AstroObjectProject | None
+        Si se detecta que el cúmulo globular ha sido estudiado se devuelve el
+        proyecto seleccionado. En caso contrario devuelve None.
     """
-    gc = None
+    project = None
     if cluster_name in selected_clusters:
-        project = None
         try:
             project = load_project(
                 cluster_name=cluster_name,
@@ -62,13 +63,13 @@ def extract_globular_cluster(
                 path=args.path,
             )
         except ProjectDontExist:
-            project_dont_exist.append(cluster_name)
+            return None
         if project is not None:
             try:
-                gc = project.clustering_results.gc
-            except Exception as error:
-                other_error.append({"cluster_name": cluster_name, "error": error})
-    return gc
+                _ = project.clustering_results.gc
+            except Exception:
+                return None
+    return project
 
 
 def get_clean_results(df_results: pd.DataFrame, df_clusters_dr2: pd.DataFrame) -> pd.DataFrame:
@@ -104,6 +105,28 @@ def get_clean_results(df_results: pd.DataFrame, df_clusters_dr2: pd.DataFrame) -
     mask_ml = ~clean_data.M_L.isna()
     clean_data = clean_data[mask_p & mask_pmra & mask_pmde & mask_ml]
     return clean_data
+
+
+def get_distance_from_center(astro_object: AstroObject, data: pd.DataFrame) -> float:
+    """
+    Función que calcula la distancia media de los objetos de data del centro.
+
+    Parameters
+    ----------
+    astro_object: AstroObject
+        Objeto astronómico.
+    data: pd.DataFrame
+        Elementos a medir, deben tener las columnas ra y dec.
+
+    Returns
+    -------
+    distance: float
+        Distancia media de los elementos data del centro de astro_object en mas.
+    """
+    ra_center = astro_object.coord.ra.value
+    dec_center = astro_object.coord.dec.value
+    distance = np.sqrt((ra_center - data.ra.values) ** 2 + (dec_center - data.dec.values) ** 2)
+    return distance.mean()
 
 
 def save_results(
@@ -151,6 +174,7 @@ if __name__ == "__main__":
     df_results = pd.DataFrame(
         columns=[
             "Name",
+            "N_count",
             "parallax",
             "e_parallax",
             "pmRA_",
@@ -159,6 +183,15 @@ if __name__ == "__main__":
             "e_pmDE",
             "RV",
             "e_RV",
+            "HVS_count",
+            "HVS_pmRA_",
+            "e_HVS_pmRA_",
+            "HVS_pmDE",
+            "e_HVS_pmDE",
+            "HVS_Distance",
+            "HVS_cosTheta",
+            "XS_count",
+            "XS_Distance",
         ]
     )
     selected_clusters = [cl.name for cl in selected_clusters]
@@ -172,10 +205,26 @@ if __name__ == "__main__":
     for cluster_name in tqdm(
         drs_clusters_name, desc="Procesando clusters", unit="item", total=drs_clusters_name.size
     ):
-        gc = extract_globular_cluster(cluster_name, selected_clusters)
-        if isinstance(gc, pd.DataFrame):
+        project = extract_globular_cluster(cluster_name, selected_clusters)
+        if project is not None:
+            gc = project.clustering_results.gc
+            gc_pm = np.array([gc.pmra.mean(), gc.pmdec.mean()])
+            hvs = project.clustering_results.selected_hvs(
+                df_hvs_candidates=project.get_data("df_6_c0"),
+                factor_sigma=1.0,
+                hvs_pm=150,
+            )
+            hvs_distance = get_distance_from_center(project.astro_object, hvs)
+            hvs_pm = hvs[["pmra", "pmdec"]].values
+            xsource = project.xsource.results[project.xsource.results.main_id == project.name]
+            xsource_distance = get_distance_from_center(project.astro_object, xsource)
+
+            hvs_cos_theta = (gc_pm * hvs_pm).sum(axis=1) / (
+                np.linalg.norm(hvs_pm, axis=1) * np.linalg.norm(gc_pm)
+            )
             df_results.loc[index] = (
                 cluster_name,
+                gc.shape[0],
                 gc.parallax.mean(),
                 gc.parallax.std(),
                 gc.pmra.mean(),
@@ -184,7 +233,35 @@ if __name__ == "__main__":
                 gc.pmdec.std(),
                 gc.radial_velocity.mean(),
                 gc.radial_velocity.std(),
+                hvs.shape[0],
+                hvs.pmra.mean(),
+                hvs.pmra.std(),
+                hvs.pmdec.mean(),
+                hvs.pmdec.std(),
+                hvs_distance,
+                hvs_cos_theta.mean(),
+                xsource.shape[0],
+                xsource_distance,
             )
+            _ = project.plot_cmd(
+                hvs_candidates_name="df_6_c0", factor_sigma=1.0, hvs_pm=150, legend=False
+            )
+
+            _ = project.plot_cluster(
+                hvs_candidates_name="df_6_c0",
+                factor_sigma=1,
+                hvs_pm=150,
+                legend=False,
+                factor_size=50,
+            )
+            for file_name in ["cluster_df_6_c0_hvs_150.png", "cmd_hvs_150.png"]:
+                save_results(
+                    file_name=file_name,
+                    path=os.path.join(args.path, cluster_name),
+                    path_bucket=cluster_name,
+                    project_id=project_id,
+                    bucket_name=bucket_name,
+                )
             index += 1
 
     logging.info("Guardando los resultados")
