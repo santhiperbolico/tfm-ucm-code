@@ -1,5 +1,8 @@
 import pandas as pd
+from astroquery.simbad import Simbad
 from astroquery.vizier import Vizier
+
+from hyper_velocity_stars_detection.sources.utils import DidntFindObject
 
 
 def get_clusters_dr2() -> pd.DataFrame:
@@ -123,3 +126,34 @@ def get_all_cluster_data() -> pd.DataFrame:
         clusters_dr2, clusters_ml, left_on=["Name"], right_on="SName", how="left"
     )
     return df_clusters
+
+
+def get_ratio_m_l(name: str) -> float | None:
+    """
+    Función que devuelve el valor de M/L del cluster si lo descarga.
+
+    Parameters
+    ----------
+    name: str
+        Nombre del cluster
+
+    Returns
+    -------
+    m_l: float | None
+        Valor M/L del cluster si lo encuentra.
+    """
+    custom_simbad = Simbad()
+    results = custom_simbad.query_object(name)
+    if results is None:
+        raise DidntFindObject(f"No se encontró el objeto {name} en Simbad.")
+    main_id = results["MAIN_ID"][0]
+    main_id = " ".join([word for word in main_id.split(" ") if word])
+
+    clusters_ml = get_mass_luminosity_clusters()
+
+    # Filtrar el objeto por nombre
+    cluster = clusters_ml[clusters_ml["SName"] == main_id]
+    m_l = cluster["M_L"].values
+    if m_l.size > 0:
+        return m_l[0]
+    return None

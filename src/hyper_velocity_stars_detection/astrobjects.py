@@ -10,6 +10,7 @@ import pandas as pd
 from attr import attrib, attrs
 
 from hyper_velocity_stars_detection.data_storage import InvalidFileFormat, StorageObjectFigures
+from hyper_velocity_stars_detection.sources.clusters_catalogs import get_ratio_m_l
 from hyper_velocity_stars_detection.sources.source import AstroObject, AstroObjectData, get_radio
 from hyper_velocity_stars_detection.sources.xray_source import XSource
 from hyper_velocity_stars_detection.tools.cluster_detection import (
@@ -48,6 +49,10 @@ class AstroObjectProject:
     @property
     def path_project(self) -> str:
         return os.path.join(self.path, self.astro_object.name)
+
+    @property
+    def name(self) -> str:
+        return self.astro_object.main_id
 
     @classmethod
     def load_project(cls, name: str, path: str, from_zip: bool = False) -> "AstroObjectProject":
@@ -246,12 +251,7 @@ class AstroObjectProject:
         return self.clustering_results
 
     def plot_cluster(
-        self,
-        hvs_candidates_name: str,
-        index_hvs_candidates: Optional[int] = None,
-        factor_sigma: float = 1.0,
-        hvs_pm: float = 150,
-        legend: bool = True,
+        self, hvs_candidates_name: str, index_hvs_candidates: Optional[int] = None, **kwargs
     ) -> tuple[plt.Figure, plt.Axes]:
         """
         Función que representa el cluster con las candidatas HVS en coordenadas galacticas
@@ -281,13 +281,9 @@ class AstroObjectProject:
         df_source_x = self.xsource.results
         df_source_x = df_source_x[df_source_x.main_id == self.astro_object.main_id]
         fig, ax = cluster_representation_with_hvs(
-            df_gc=df_gc,
-            df_hvs_candidates=df_hvs_candidates,
-            factor_sigma=factor_sigma,
-            hvs_pm=hvs_pm,
-            df_source_x=df_source_x,
-            legend=legend,
+            df_gc=df_gc, df_hvs_candidates=df_hvs_candidates, df_source_x=df_source_x, **kwargs
         )
+        hvs_pm = kwargs.get("hvs_pm")
         ax.set_title(f"Cluster {hvs_candidates_name} hvs > {hvs_pm} km/s")
         StorageObjectFigures.save(
             path=os.path.join(self.path_project, f"cluster_{hvs_candidates_name}_hvs_{hvs_pm}"),
@@ -370,3 +366,15 @@ class AstroObjectProject:
             )
             return fig, ax
         raise RuntimeError("Genera un clustering antes de ejecutar este método.")
+
+    def get_extra_info(self) -> dict:
+        """
+        Método que extrae y sintetiza la información del cluster.
+
+        Returns
+        -------
+        extra_results: dict
+            Diccionario con la información.
+        """
+        extra_results = {"m_l": get_ratio_m_l(self.astro_object.name)}
+        return extra_results
