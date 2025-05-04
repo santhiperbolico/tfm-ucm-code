@@ -210,7 +210,7 @@ if __name__ == "__main__":
             gc = project.clustering_results.gc
             gc_pm = np.array([gc.pmra.mean(), gc.pmdec.mean()])
             hvs = project.clustering_results.selected_hvs(
-                df_hvs_candidates=project.get_data("df_6_c0"),
+                df_hvs_candidates=project.get_data("df_6_c1"),
                 factor_sigma=1.0,
                 hvs_pm=150,
             )
@@ -244,17 +244,17 @@ if __name__ == "__main__":
                 xsource_distance,
             )
             _ = project.plot_cmd(
-                hvs_candidates_name="df_6_c0", factor_sigma=1.0, hvs_pm=150, legend=False
+                hvs_candidates_name="df_6_c1", factor_sigma=1.0, hvs_pm=150, legend=False
             )
 
             _ = project.plot_cluster(
-                hvs_candidates_name="df_6_c0",
+                hvs_candidates_name="df_6_c1",
                 factor_sigma=1,
                 hvs_pm=150,
                 legend=False,
                 factor_size=50,
             )
-            for file_name in ["cluster_df_6_c0_hvs_150.png", "cmd_hvs_150.png"]:
+            for file_name in ["cluster_df_6_c1_hvs_150.png", "cmd_hvs_150.png"]:
                 save_results(
                     file_name=file_name,
                     path=os.path.join(args.path, cluster_name),
