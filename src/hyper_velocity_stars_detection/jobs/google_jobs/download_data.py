@@ -1,3 +1,4 @@
+import argparse
 import logging
 import os
 import sys
@@ -10,13 +11,30 @@ from hyper_velocity_stars_detection.jobs.google_jobs.utils import (
     download_from_gcs,
     upload_folder_to_gcs,
 )
-from hyper_velocity_stars_detection.jobs.utils import (
-    download_astro_data,
-    get_params,
-    read_catalog_file,
-)
+from hyper_velocity_stars_detection.jobs.utils import download_astro_data, read_catalog_file
 
 Simbad.SIMBAD_URL = "http://simbad.u-strasbg.fr/simbad/sim-id"
+
+
+def get_params(argv: list[str]) -> argparse.Namespace:
+    """
+    Función que genera los argumentos de download_data.
+
+    Parameters
+    ----------
+    argv: list[str]
+        Lista de argumentos del job.
+
+    Returns
+    -------
+    args: argparse.Namespace
+        Argumentos.
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--path", default="data/globular_clusters/")
+    parser.add_argument("--catalog", default="gaiadr3")
+    parser.add_argument("--cluster_name", default=None)
+    return parser.parse_args(argv)
 
 
 if __name__ == "__main__":
@@ -30,6 +48,11 @@ if __name__ == "__main__":
     bucket_name = os.getenv("BUCKET")
     cluster_catalog = download_from_gcs(project_id, bucket_name, "mwgc.dat.txt", args.path)
     selected_clusters = read_catalog_file(cluster_catalog)
+    if args.cluster_name:
+        all_clusters = selected_clusters
+        selected_clusters = [
+            cluster for cluster in all_clusters if cluster.name == args.cluster_name
+        ]
 
     for cluster in tqdm(selected_clusters, desc="Procesando elementos", unit="item"):
         logging.info(f"Procesando elemento {cluster.name}")
@@ -37,6 +60,7 @@ if __name__ == "__main__":
             with TemporaryDirectory() as temp_path:
                 download_astro_data(
                     cluster_name=cluster.name,
+                    catalog_name=args.catalog,
                     read_from_cache=True,
                     path=temp_path,
                     radio_scale=cluster.radio_scale,

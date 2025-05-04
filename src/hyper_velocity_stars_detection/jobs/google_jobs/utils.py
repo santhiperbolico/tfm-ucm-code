@@ -1,6 +1,10 @@
+import logging
 import os
 
 from google.cloud import storage
+
+from hyper_velocity_stars_detection.astrobjects import AstroObjectProject
+from hyper_velocity_stars_detection.jobs.utils import ProjectDontExist
 
 
 def upload_folder_to_gcs(project_id, bucket_name, temp_path, destination_folder):
@@ -66,3 +70,40 @@ def download_from_gcs(project_id: str, bucket_name: str, file_path: str, path: s
     local_path = os.path.join(path, file_name)
     blob.download_to_filename(local_path)
     return local_path
+
+
+def load_project(
+    cluster_name: str, project_id: str, bucket_name: str, path: str
+) -> AstroObjectProject:
+    """
+    Función que descarga o carga desde la cache los datos limpios en un proyecto.
+
+    Parameters
+    ----------
+    cluster_name: str,
+        Nombre del cluster
+    project_id: str
+        ID del proyecto de GCP
+    bucket_name: str
+        Nombre del bucket de Storage.
+    path: str
+        Ruta donde queremos guardar los datos.
+
+    Returns
+    -------
+    project: AstroObjectProject
+        Proyecto donde se guardan los resultados.
+    """
+    client = storage.Client(project=project_id)
+    bucket = client.bucket(bucket_name)
+
+    logging.info(f"Procesando elemento {cluster_name}")
+
+    file_path = f"{cluster_name}.zip"
+    blob = bucket.blob(blob_name=file_path)
+    if blob.exists():
+        blob.download_to_filename(os.path.join(path, file_path))
+        project = AstroObjectProject.load_project(cluster_name, path, True)
+        return project
+
+    raise ProjectDontExist("No hay datos descargados del proyecto")
