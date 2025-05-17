@@ -171,6 +171,7 @@ def cmd_with_cluster(
     magnitud_field: str = "phot_g_mean_mag",
     isochrone_distance_module: float = 0,
     isochrone_redding: float = 0,
+    clusters: Optional[int | list[int]] = None,
 ) -> tuple[plt.Figure, plt.Axes]:
     """
     Función que genera la gráfica del Color Magnitud Diagram. S
@@ -209,8 +210,13 @@ def cmd_with_cluster(
         edgecolor="none",
         alpha=0.5,
     )
+    if clusters is None:
+        clusters = np.unique(labels[labels > -1]).tolist()
 
-    for label in np.unique(labels[labels > -1]):
+    if isinstance(clusters, int):
+        clusters = [clusters]
+
+    for label in clusters:
         mask_i = labels == label
         plt.scatter(
             x=df_catalog.loc[mask_i, color_field],
