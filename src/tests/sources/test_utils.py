@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+import pandas as pd
 import pytest
 from astropy import units as u
 from astropy.coordinates import SkyCoord
@@ -7,6 +8,7 @@ from astropy.table.table import Table
 from attr import attrs
 
 from hyper_velocity_stars_detection.sources.utils import (
+    fix_parallax,
     get_object_from_heasarc,
     get_object_from_simbad,
     get_skycoords,
@@ -23,6 +25,11 @@ class GlobularCluster:
 @pytest.fixture
 def cluster():
     return GlobularCluster("ngc 104", 6.02363, -72.08128)
+
+
+@pytest.fixture()
+def df_data():
+    return pd.read_csv("tests/test_data/df_data.csv")
 
 
 @patch("hyper_velocity_stars_detection.sources.utils.Heasarc", autospec=True)
@@ -54,3 +61,9 @@ def test_get_skycoords(simbad_class_mock, cluster):
     assert isinstance(coords, SkyCoord)
     assert cluster.ra == pytest.approx(cluster.ra, abs=1e-2)
     assert cluster.dec == pytest.approx(cluster.dec, abs=1e-2)
+
+
+def test_fix_parallax(df_data):
+    df_data = fix_parallax(df_data)
+    assert "parallax_corrected" in df_data.columns
+    assert (df_data.parallax_corrected > df_data.parallax).all()

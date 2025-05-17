@@ -2,12 +2,14 @@ import logging
 
 import astropy.units as u
 import numpy as np
+import pandas as pd
 from astropy.coordinates import SkyCoord
 from astropy.table.table import Table
 from astropy.units import Unit
 from astroquery.gaia import Gaia
 from astroquery.heasarc import Heasarc
 from astroquery.simbad import Simbad
+from zero_point import zpt
 
 HEASARC_COLUMNS = [
     "NAME",
@@ -154,3 +156,40 @@ def get_object(name: str, radius_arcsec: float = 5.0, timeout: int = 120) -> Tab
     results = job.get_results()
     logging.info(f"Se encontraron {len(results)} fuentes en el radio de búsqueda:")
     return results
+
+
+def fix_parallax(df_data: pd.DataFrame, warnings: bool = True) -> pd.DataFrame:
+    """
+    Función que corrige el sesgo del paralaje de los datos del objeto calculando el punto zero
+    del paralaje corregido (Lindegren et al., 2021 https://doi.org/10.1051/0004-6361/202039653).
+
+    Parameters
+    ----------
+    df_data: pd.DataFrame
+        Datos con las métricas
+    warnings: bool, default True
+        Indica si se quiere mostrar los warning asociadso a zero_point.get_zpt
+
+    Returns
+    -------
+    df_data: pd.DataFrame
+        Datos con la columna extra de parallax_corrected. En el caso de que exista la columna
+        la modifica.
+    """
+    zpt.load_tables()
+    parallax = df_data["parallax"].values
+    phot_g_mean_mag = df_data["phot_g_mean_mag"].values
+    nueffused = df_data["nu_eff_used_in_astrometry"].values
+    pseudocolour = df_data["pseudocolour"].values
+    ecl_lat = df_data["ecl_lat"].values
+    astrometric_params_solved = df_data["astrometric_params_solved"].values
+    zpvals = zpt.get_zpt(
+        phot_g_mean_mag,
+        nueffused,
+        pseudocolour,
+        ecl_lat,
+        astrometric_params_solved,
+        _warnings=warnings,
+    )
+    df_data["parallax_corrected"] = parallax - zpvals
+    return df_data
