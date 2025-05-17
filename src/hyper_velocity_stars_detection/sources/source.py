@@ -19,7 +19,11 @@ from hyper_velocity_stars_detection.sources.metrics import (
     get_l_b_velocities,
 )
 from hyper_velocity_stars_detection.sources.ruwe_tools.dr2.ruwetools import U0Interpolator
-from hyper_velocity_stars_detection.sources.utils import get_object_from_simbad, get_skycoords
+from hyper_velocity_stars_detection.sources.utils import (
+    fix_parallax,
+    get_object_from_simbad,
+    get_skycoords,
+)
 
 SAMPLE_DESCRIPTION = [
     "Todas las estrellas seleccionadas",
@@ -205,9 +209,13 @@ class AstroObject:
         df_r: pd.DataFrame
             Datos copiados con las métricas extra.
         """
-        df_r = self.data
-        df_r["pmra_kms"] = convert_mas_yr_in_km_s(df_r["parallax"].values, df_r["pmra"].values)
-        df_r["pmdec_kms"] = convert_mas_yr_in_km_s(df_r["parallax"].values, df_r["pmdec"].values)
+        df_r = fix_parallax(self.data)
+        df_r["pmra_kms"] = convert_mas_yr_in_km_s(
+            df_r["parallax_corrected"].values, df_r["pmra"].values
+        )
+        df_r["pmdec_kms"] = convert_mas_yr_in_km_s(
+            df_r["parallax_corrected"].values, df_r["pmdec"].values
+        )
         df_r["pm_kms"] = np.sqrt(df_r.pmra_kms**2 + df_r.pmdec_kms**2)
         df_r["pm"] = np.sqrt(df_r.pmra**2 + df_r.pmdec**2)
         df_r["pm_l"], df_r["pm_b"] = get_l_b_velocities(
@@ -410,3 +418,47 @@ class AstroObjectData:
                 f"El catalogo de los datos {g_name} es erroneo. "
                 f"Prueba con : {list(self.data.keys())}"
             )
+
+    def fix_parallax(self, g_name: Optional[str] = None, **kwargs) -> None:
+        """
+        Método que implementa la corrección del paralaje y el cálculo del movimiento
+        propio en KMS, dependiente del paralaje.
+
+        Parameters
+        ----------
+        g_name: Optional[str], default None
+            Nombre del catálogo a corregir, en el caso de no especificar lo aplica a todos.
+        **kwargs
+            Parámetros de la función hyper_velocity_stars_detection.sources.utils.fix_parallax.
+
+        """
+
+        if g_name is None:
+            for name, df_data in self.data.items():
+                df_data = fix_parallax(df_data, **kwargs)
+                df_data["pmra_kms"] = convert_mas_yr_in_km_s(
+                    df_data["parallax_corrected"].values, df_data["pmra"].values
+                )
+                df_data["pmdec_kms"] = convert_mas_yr_in_km_s(
+                    df_data["parallax_corrected"].values, df_data["pmdec"].values
+                )
+                df_data["pm_kms"] = np.sqrt(df_data.pmra_kms**2 + df_data.pmdec_kms**2)
+                self.data[name] = df_data
+            return None
+        try:
+            df_data = self.data[g_name]
+        except KeyError:
+            raise ValueError(
+                f"El catalogo de los datos {g_name} es erroneo. "
+                f"Prueba con : {list(self.data.keys())}"
+            )
+
+        df_data["pmra_kms"] = convert_mas_yr_in_km_s(
+            df_data["parallax_corrected"].values, df_data["pmra"].values
+        )
+        df_data["pmdec_kms"] = convert_mas_yr_in_km_s(
+            df_data["parallax_corrected"].values, df_data["pmdec"].values
+        )
+        df_data["pm_kms"] = np.sqrt(df_data.pmra_kms**2 + df_data.pmdec_kms**2)
+        self.data[g_name] = fix_parallax(df_data, **kwargs)
+        return None

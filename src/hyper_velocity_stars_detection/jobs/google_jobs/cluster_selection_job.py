@@ -8,11 +8,12 @@ from google.cloud import storage
 from tqdm import tqdm
 
 from hyper_velocity_stars_detection.astrobjects import AstroObjectProject
-from hyper_velocity_stars_detection.jobs.google_jobs.utils import (
+from hyper_velocity_stars_detection.jobs.google_jobs.utils import download_from_gcs
+from hyper_velocity_stars_detection.jobs.utils import (
     DefaultParamsClusteringDetection,
-    download_from_gcs,
+    ProjectDontExist,
+    read_catalog_file,
 )
-from hyper_velocity_stars_detection.jobs.utils import ProjectDontExist, read_catalog_file
 
 
 def get_params(argv: list[str]) -> argparse.Namespace:
