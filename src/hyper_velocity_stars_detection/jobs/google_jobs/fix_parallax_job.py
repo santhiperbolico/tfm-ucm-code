@@ -78,22 +78,33 @@ if __name__ == "__main__":
     cluster_catalog = download_from_gcs(project_id, bucket_name, "mwgc.dat.txt", args.path)
     selected_clusters = read_catalog_file(cluster_catalog)
     selected_clusters = [cl.name for cl in selected_clusters]
+    dont_exist_projects = []
 
     for cluster_name in tqdm(
         selected_clusters, desc="Procesando clusters", unit="item", total=len(selected_clusters)
     ):
         with TemporaryDirectory() as temp_path:
             project = fix_project_parallax(cluster_name, temp_path)
-            file_name = f"{cluster_name}.zip"
-            logging.info("-- Guardando los datos en  %s." % file_name)
-            project.save_project(to_zip=True)
+            if project is None:
+                logging.info("El proyecto %s no existe." % cluster_name)
+                dont_exist_projects.append(cluster_name)
+            else:
+                file_name = f"{cluster_name}.zip"
+                logging.info("-- Guardando los datos en  %s." % file_name)
+                project.save_project(to_zip=True)
 
-            logging.info("-- Subiendo datos a Storage %s." % file_name)
-            file_path = os.path.join(temp_path, file_name)
-            client = storage.Client(project=project_id)
-            bucket = client.bucket(bucket_name)
-            blob = bucket.blob(file_name)
-            blob.upload_from_filename(file_path)
-            logging.info("-- Archivo %s subido a Storage ." % file_name)
+                logging.info("-- Subiendo datos a Storage %s." % file_name)
+                file_path = os.path.join(temp_path, file_name)
+                client = storage.Client(project=project_id)
+                bucket = client.bucket(bucket_name)
+                blob = bucket.blob(file_name)
+                blob.upload_from_filename(file_path)
+                logging.info("-- Archivo %s subido a Storage ." % file_name)
+
+    if dont_exist_projects:
+        n_fails = len(dont_exist_projects)
+        n_projects = len(selected_clusters)
+        logging.info("No se han podido actualizar %i proyectos de %i" % (n_fails, n_projects))
+        logging.info("Los proyectos que han fallado son: %s" % str(dont_exist_projects))
 
     logging.info("Proceso finalizado")
