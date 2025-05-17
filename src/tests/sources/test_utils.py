@@ -38,7 +38,7 @@ def test_get_object_from_heasarc(heasarc_class_mock, cluster):
 @patch("hyper_velocity_stars_detection.sources.utils.Simbad", autospec=True)
 def test_get_object_from_simbad(simbad_class_mock, cluster):
     simbad_mock = simbad_class_mock.return_value
-    simbad_mock.query_object.return_value = Table.read("tests/test_data/result_simbad.fits")
+    simbad_mock.query_object.return_value = Table.read("tests/test_data/result_simbad.txt")
     result = get_object_from_simbad(cluster.name)
     assert isinstance(result, Table)
     assert result["RA"] == pytest.approx(cluster.ra, abs=1e-2)
@@ -48,7 +48,7 @@ def test_get_object_from_simbad(simbad_class_mock, cluster):
 @patch("hyper_velocity_stars_detection.sources.utils.Simbad", autospec=True)
 def test_get_skycoords(simbad_class_mock, cluster):
     simbad_mock = simbad_class_mock.return_value
-    simbad_mock.query_object.return_value = Table.read("tests/test_data/result_simbad.fits")
+    simbad_mock.query_object.return_value = Table.read("tests/test_data/result_simbad.txt")
     result = get_object_from_simbad(cluster.name)
     coords = get_skycoords(result, u.deg, u.deg)
     assert isinstance(coords, SkyCoord)

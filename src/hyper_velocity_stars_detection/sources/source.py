@@ -72,6 +72,7 @@ def get_radio(coords: Table, radio_scale: float, radius_type: Optional[str] = No
 @attrs
 class AstroObject:
     name = attrib(init=True, type=str)
+    main_id = attrib(init=True, type=str)
     info = attrib(init=True, type=Table)
     coord = attrib(init=True, type=SkyCoord)
     data = attrib(init=False, type=pd.DataFrame)
@@ -94,8 +95,9 @@ class AstroObject:
             Elemento AstroObject instanciado.
         """
         result_object = get_object_from_simbad(name)
+        main_id = "_".join(result_object["MAIN_ID"][0].split())
         coord = get_skycoords(result_object, u.deg, u.deg)
-        return cls(name, result_object, coord)
+        return cls(name, main_id, result_object, coord)
 
     def download_object(
         self,

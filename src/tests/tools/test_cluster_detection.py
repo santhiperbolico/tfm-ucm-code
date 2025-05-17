@@ -5,11 +5,8 @@ import pandas as pd
 import pytest
 from sklearn.preprocessing import StandardScaler
 
-from hyper_velocity_stars_detection.tools.cluster_detection import (
-    DBSCAN,
-    ClusteringResults,
-    score_cluster,
-)
+from hyper_velocity_stars_detection.tools.cluster_detection import ClusteringResults, score_cluster
+from hyper_velocity_stars_detection.tools.clustering_methods import DBSCAN
 
 
 @pytest.fixture

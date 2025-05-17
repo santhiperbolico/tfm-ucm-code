@@ -1,14 +1,12 @@
 import logging
 import os
-from typing import Any, Optional, Union
+from typing import Any, Optional, Self, Tuple, Union
 
 import numpy as np
 import pandas as pd
 from attr import attrs
 from optuna import create_study
 from optuna.trial import Trial
-from sklearn.cluster import DBSCAN, HDBSCAN, KMeans
-from sklearn.mixture import GaussianMixture
 from sklearn.preprocessing import StandardScaler
 
 from hyper_velocity_stars_detection.data_storage import (
@@ -16,61 +14,15 @@ from hyper_velocity_stars_detection.data_storage import (
     StorageObjectPandasCSV,
     StorageObjectPickle,
 )
-
-
-class GaussianMixtureClustering:
-    """
-    Clase decoradora de los métodos de clusterización de GaussianMixture
-    """
-
-    def __init__(self, **kwargs):
-        self.model = GaussianMixture(**kwargs)
-
-    def fit(self, data: pd.DataFrame):
-        self.model.fit(data)
-        self.labels_ = self.model.predict(data)
-
-    def predict(self, data: pd.DataFrame):
-        return self.model.predict(data)
-
-
-ClusterMethods = Union[DBSCAN, KMeans, HDBSCAN, GaussianMixtureClustering]
+from hyper_velocity_stars_detection.tools.clustering_methods import (
+    ClusterMethods,
+    ClusterMethodsNames,
+    get_cluster_method,
+    get_default_params_distribution,
+)
 
 DEFAULT_COLS = ["pm", "parallax"]
 DEFAULT_COLS_CLUS = DEFAULT_COLS + ["bp_rp", "phot_g_mean_mag"]
-
-
-class ClusterMethodsNames:
-    """
-    Nombres de los métodos de clustering.
-    """
-
-    DBSCAN_NAME = "dbscan"
-    KMEANS_NAME = "kmeans"
-    HDBSCAN_NAME = "hdbscan"
-    GM_NAME = "gaussian_mixture"
-
-
-class ClusterParamsDistribution:
-    """
-    Clase que engloba los parámetros por defecto en cada método de clustering.
-    """
-
-    DBSCAN_PARAMS = {
-        "eps": ["unif", "eps", 0.1, 1.0],
-        "min_samples": ["int", "min_samples", 3, 10],
-    }
-    HDBSCAN_PARAMS = {
-        "min_cluster_size": ["int", "min_cluster_size", 10, 100],
-        "min_samples": ["int", "min_samples", 3, 10],
-    }
-    KMEANS_PARAMS = {"n_clusters": ["int", "n_clusters", 2, 10]}
-    GM_PARAMS = {
-        "n_components": ["int", "n_components", 2, 10],
-        "covariance_type": ["cat", "covariance_type", ["full", "tied", "diag", "spherical"]],
-        "tol": ["lunif", "tol", 1e-5, 1e-3],
-        "max_iter": ["int", "max_iter", 100, 300],
-    }
 
 
 class DistributionTrialDontExist(Exception):
@@ -79,45 +31,6 @@ class DistributionTrialDontExist(Exception):
     """
 
     pass
-
-
-def get_main_cluster(labels: np.ndarray) -> int:
-    """
-    Función que calcula el cluster mayoritario
-    """
-    unique_lab = np.unique(labels[labels > -1])
-    j = np.argmax(np.bincount(labels[labels > -1]))
-    return unique_lab[j]
-
-
-def score_cluster(df: pd.DataFrame, columns: list[str], labels: np.ndarray) -> float:
-    """
-    Función que devuelve al suma de la dispersión de las columnas para cada cluster
-    definido en labels
-
-    Parameters
-    ----------
-    df: pd.DataFrame
-        Tabla con las estrellas a clasificar.
-    columns: list[str]
-        Lista de columnas usadas para medir la desviación típica.
-    labels: np.ndarray
-        Etiquetas con la clasificación de las estrellas.
-
-    Returns
-    -------
-    score: float
-        Media de la media de la desviación típica normalizada por columna y cluster.
-    """
-    unique_lab = np.unique(labels[labels > -1])
-    std_array = np.zeros((unique_lab.size, len(columns)))
-
-    for i, lab in enumerate(unique_lab):
-        gc = df[labels == lab]
-        std_array[i, :] = gc[columns].std().values
-
-    score = std_array.sum(axis=1)
-    return np.median(score)
 
 
 def get_params_model_trial(
@@ -181,58 +94,53 @@ def get_distribution_trial(trial: Trial, trial_values: list[Union[str, int, floa
         )
 
 
-def get_cluster_method(method: ClusterMethodsNames) -> ClusterMethods:
+def get_main_cluster(labels: np.ndarray[int]) -> int:
     """
-    Función que nos devuelve el modelo de clusterizaación.
+    Función que calcula el cluster mayoritario
 
     Parameters
     ----------
-    method: ClusterMethodsNames
-        Nombre del método a utilizar.
+    labels: np.ndarray
+        Arrays con las etiquetas asociadas a los cluster
 
     Returns
     -------
-    clustering: ClusterMethods
-        Modelo de clusterización
+    label_cluster: int
+        Valor de la etiqueta del cluster con mayor volumen.
     """
-
-    methods = {
-        ClusterMethodsNames.DBSCAN_NAME: DBSCAN,
-        ClusterMethodsNames.KMEANS_NAME: KMeans,
-        ClusterMethodsNames.HDBSCAN_NAME: HDBSCAN,
-        ClusterMethodsNames.GM_NAME: GaussianMixtureClustering,
-    }
-    try:
-        return methods[method]
-    except KeyError:
-        raise ValueError(f"No existe el método {method}, prueba con : {list(methods.keys())}")
+    unique_lab = np.unique(labels[labels > -1])
+    j = np.argmax(np.bincount(labels[labels > -1]))
+    return int(unique_lab[j])
 
 
-def get_default_params_distribution(method: ClusterMethodsNames) -> ClusterMethods:
+def score_cluster(df: pd.DataFrame, columns: list[str], labels: np.ndarray) -> float:
     """
-    Función que nos devuelve la distribución por defecto de los parámetros.
+    Función que devuelve al suma de la dispersión de las columnas para cada cluster
+    definido en labels
 
     Parameters
     ----------
-    method: ClusterMethodsNames
-        Nombre del método a utilizar.
+    df: pd.DataFrame
+        Tabla con las estrellas a clasificar.
+    columns: list[str]
+        Lista de columnas usadas para medir la desviación típica.
+    labels: np.ndarray
+        Etiquetas con la clasificación de las estrellas.
 
     Returns
     -------
-    params_distribucion: ClusterParamsDistribution
-        Distribución de los parámetros por defecto
+    score: float
+        Media de la media de la desviación típica normalizada por columna y cluster.
     """
+    unique_lab = np.unique(labels[labels > -1])
+    std_array = np.zeros((unique_lab.size, len(columns)))
 
-    methods = {
-        ClusterMethodsNames.DBSCAN_NAME: ClusterParamsDistribution.DBSCAN_PARAMS,
-        ClusterMethodsNames.KMEANS_NAME: ClusterParamsDistribution.KMEANS_PARAMS,
-        ClusterMethodsNames.HDBSCAN_NAME: ClusterParamsDistribution.HDBSCAN_PARAMS,
-        ClusterMethodsNames.GM_NAME: ClusterParamsDistribution.GM_PARAMS,
-    }
-    try:
-        return methods[method]
-    except KeyError:
-        raise ValueError(f"No existe el método {method}, prueba con : {list(methods.keys())}")
+    for i, lab in enumerate(unique_lab):
+        gc = df[labels == lab]
+        std_array[i, :] = gc[columns].std().values
+
+    score = std_array.sum(axis=1)
+    return np.median(score)
 
 
 @attrs(auto_attribs=True)
@@ -245,6 +153,7 @@ class ClusteringResults:
     columns: list[str]
     labels: np.ndarray[int]
     clustering: ClusterMethods
+    main_label: Optional[int | list[int]] = None
 
     _storage = ContainerSerializerZip(
         serializers={
@@ -252,8 +161,13 @@ class ClusteringResults:
             "columns": StorageObjectPickle(),
             "labels": StorageObjectPickle(),
             "clustering": StorageObjectPickle(),
+            "main_label": StorageObjectPickle(),
         }
     )
+
+    def __attrs_post_init__(self):
+        if self.main_label is None:
+            self.set_main_label()
 
     def __str__(self) -> str:
         n_clusters_ = len(set(self.labels)) - (1 if -1 in self.labels else 0)
@@ -262,8 +176,9 @@ class ClusteringResults:
         description += f"Estimated number of noise points: {n_noise_}\n"
 
         for label in np.unique(self.labels[self.labels > -1]):
-            mask_i = self.labels == label
-            description += f"\t - Volumen total del cluster {label}: {mask_i.sum()}.\n"
+            mask_i = np.isin(self.labels, label)
+            n_cluster = mask_i.sum()
+            description += f"\t - Volumen total del cluster {label}: {n_cluster}.\n"
         return description
 
     @property
@@ -271,8 +186,43 @@ class ClusteringResults:
         """
         Estrellas del conjutno de estrellas mayoritario.
         """
-        mask = self.labels == get_main_cluster(self.labels)
+        mask = np.isin(self.labels, self.main_label)
         return self.df_stars[mask]
+
+    def set_main_label(self, main_label: Optional[int | list[int]] = None) -> None:
+        """
+        Método que modifica la etiqueta principal del cluster
+        Parameters
+        ----------
+        main_label: Optional[int | list[int]], default None
+            Etiqueta que se quiere utilizar ocmo principal. Por defecto se
+            utiliza la mayoritaria.
+        """
+        if main_label is None:
+            self.main_label = get_main_cluster(self.labels)
+            return None
+        self.main_label = main_label
+        return None
+
+    def get_labels(
+        self, return_counts: bool = False
+    ) -> np.ndarray | Tuple[np.ndarray, np.ndarray]:
+        """
+        Método que modifica la etiqueta principal del cluster
+        Parameters
+        ----------
+        return_counts: bool = False
+            Indica si se quiere devolver el volumen de cada cluster
+
+        Returns
+        -------
+        unique_labels: np.ndarray
+            Etiquetas de los cluster
+        counts_labels: np.ndarray, optional
+            Si return_counts es True devuelve el volumen de cada cluster en este array.
+        """
+
+        return np.unique(self.labels[self.labels > -1], return_counts=return_counts)
 
     def save(self, path: str):
         """
@@ -289,11 +239,12 @@ class ClusteringResults:
             "columns": self.columns,
             "labels": self.labels,
             "clustering": self.clustering,
+            "main_label": self.main_label,
         }
         self._storage.save(path_name, container)
 
     @classmethod
-    def load(cls, path: str) -> "ClusteringResults":
+    def load(cls, path: str) -> Self:
         """
         Método que carga los resultados de la clusterización.
 
@@ -304,10 +255,19 @@ class ClusteringResults:
 
         Returns
         -------
-
+        object: Self
+            Objeto instanciado.
         """
         path_name = os.path.join(path, "stars_clustering.zip")
-        params = cls._storage.load(path_name)
+        try:
+            params = cls._storage.load(path_name)
+        except FileNotFoundError as error:
+            if "main_label" not in str(error):
+                raise error
+            serializers = cls._storage._serializers.copy()
+            _ = serializers.pop("main_label")
+            storage = ContainerSerializerZip(serializers=serializers)
+            params = storage.load(path_name)
         return cls(**params)
 
     def selected_hvs(
@@ -349,12 +309,12 @@ class ClusteringResults:
 
 def optimize_clustering(
     df_stars: pd.DataFrame,
-    columns: list[str] = DEFAULT_COLS,
-    columns_to_clus: list[str] = DEFAULT_COLS_CLUS,
+    columns: Optional[list[str]] = None,
+    columns_to_clus: Optional[list[str]] = None,
     max_cluster: int = 10,
     n_trials: int = 100,
-    method: ClusterMethodsNames = ClusterMethodsNames.DBSCAN_NAME,
-    params_to_opt: Optional[dict[str, list[str, float, int, list[Any]]]] = None,
+    method: str = ClusterMethodsNames.DBSCAN_NAME,
+    params_to_opt: Optional[dict[str, list[str | float | int | list[Any]]]] = None,
 ) -> ClusteringResults:
     """
     Función que clusteriza los datos del catálogo usando las columnas columns_to_clus
@@ -374,7 +334,7 @@ def optimize_clustering(
         Columnas usadas en la clusterización.
     method: str, default dbscan
         Método de clusterización utilizado.
-    params_to_opt:  dict[str, list[str,float, int, list[Any]]]
+    params_to_opt:  dict[str, list[str|float|int|list[Any]]]]
         Parámetros a optimizar.
 
     Returns
@@ -382,6 +342,10 @@ def optimize_clustering(
     results: ClusteringResults
         Resultados de la optimización de clusterización
     """
+    if columns is None:
+        columns = DEFAULT_COLS
+    if columns_to_clus is None:
+        columns_to_clus = DEFAULT_COLS_CLUS
 
     data = StandardScaler().fit_transform(df_stars[columns_to_clus])
     mask_nan = df_stars[columns_to_clus].isna().any(axis=1).values
@@ -392,7 +356,7 @@ def optimize_clustering(
     if params_to_opt is None:
         params_to_opt = {}
 
-    params_distribution = get_default_params_distribution(method)
+    params_distribution = get_default_params_distribution(method, max_cluster, params_to_opt)
     params_distribution.update(params_to_opt)
 
     def objective(trial: Trial) -> float:
@@ -418,6 +382,6 @@ def optimize_clustering(
 
     clustering = clustering_class(**best_params)
     clustering.fit(data)
-
-    results = ClusteringResults(df_stars, columns, clustering.labels_, clustering)
+    main_label = get_main_cluster(clustering.labels_)
+    results = ClusteringResults(df_stars, columns, clustering.labels_, clustering, main_label)
     return results

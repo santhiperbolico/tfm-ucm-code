@@ -171,6 +171,7 @@ def cmd_with_cluster(
     magnitud_field: str = "phot_g_mean_mag",
     isochrone_distance_module: float = 0,
     isochrone_redding: float = 0,
+    clusters: Optional[int | list[int]] = None,
 ) -> tuple[plt.Figure, plt.Axes]:
     """
     Función que genera la gráfica del Color Magnitud Diagram. S
@@ -209,8 +210,13 @@ def cmd_with_cluster(
         edgecolor="none",
         alpha=0.5,
     )
+    if clusters is None:
+        clusters = np.unique(labels[labels > -1]).tolist()
 
-    for label in np.unique(labels[labels > -1]):
+    if isinstance(clusters, int):
+        clusters = [clusters]
+
+    for label in clusters:
         mask_i = labels == label
         plt.scatter(
             x=df_catalog.loc[mask_i, color_field],
@@ -366,6 +372,7 @@ def cluster_representation_with_hvs(
     df_gc: pd.DataFrame,
     df_hvs_candidates: pd.DataFrame,
     factor_sigma: float = 1.0,
+    factor_size: int = 200,
     hvs_pm: float = 150,
     df_source_x: Optional[pd.DataFrame] = None,
     legend: bool = True,
@@ -411,7 +418,6 @@ def cluster_representation_with_hvs(
     fig, ax = plt.subplots(figsize=(8, 5))
 
     selected = df_hvs_candidates[mask_hvs]
-    factor = 200
 
     mean_pm_l = df_gc.pm_l.mean()
     mean_pm_b = df_gc.pm_b.mean()
@@ -423,24 +429,25 @@ def cluster_representation_with_hvs(
     ax.quiver(
         df_gc.l,
         df_gc.b,
-        (df_gc.pm_l - mean_pm_l) / factor,
-        (df_gc.pm_b - mean_pm_b) / factor,
+        (df_gc.pm_l - mean_pm_l) / factor_size,
+        (df_gc.pm_b - mean_pm_b) / factor_size,
         color="grey",
         scale=5,
         width=0.003,
     )
 
     # Marcar las estrellas seleccionadas (ejemplo: aquellas con ciertas condiciones)
-    ax.quiver(
-        selected["l"],
-        selected["b"],
-        (selected["pm_l"] - mean_pm_l) / factor,
-        (selected["pm_b"] - mean_pm_b) / factor,
-        color="blue",
-        scale=5,
-        width=0.003,
-        label="Pre-selected Stars",
-    )
+    if not selected.empty:
+        ax.quiver(
+            selected["l"],
+            selected["b"],
+            (selected["pm_l"] - mean_pm_l) / factor_size,
+            (selected["pm_b"] - mean_pm_b) / factor_size,
+            color="blue",
+            scale=5,
+            width=0.003,
+            label="Pre-selected Stars",
+        )
 
     if isinstance(df_source_x, pd.DataFrame):
         ax.scatter(
