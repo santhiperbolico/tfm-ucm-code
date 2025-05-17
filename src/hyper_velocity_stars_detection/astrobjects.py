@@ -14,16 +14,14 @@ from hyper_velocity_stars_detection.sources.clusters_catalogs import get_ratio_m
 from hyper_velocity_stars_detection.sources.source import AstroObject, AstroObjectData, get_radio
 from hyper_velocity_stars_detection.sources.xray_source import XSource
 from hyper_velocity_stars_detection.tools.cluster_detection import (
-    DEFAULT_COLS,
-    DEFAULT_COLS_CLUS,
     ClusteringResults,
-    ClusterMethodsNames,
     optimize_clustering,
 )
 from hyper_velocity_stars_detection.tools.cluster_representations import (
     cluster_representation_with_hvs,
     cmd_with_cluster,
 )
+from hyper_velocity_stars_detection.tools.clustering_methods import ClusterMethodsNames
 
 
 @attrs
@@ -203,12 +201,12 @@ class AstroObjectProject:
         self,
         data_name: str,
         index_data: Optional[int] = None,
-        columns: list[str] = DEFAULT_COLS,
-        columns_to_clus: list[str] = DEFAULT_COLS_CLUS,
+        columns: Optional[list[str]] = None,
+        columns_to_clus: Optional[list[str]] = None,
         max_cluster: int = 10,
         n_trials: int = 100,
-        method: ClusterMethodsNames = ClusterMethodsNames.DBSCAN_NAME,
-        params_to_opt: Optional[dict[str, list[str, float, int, list[Any]]]] = None,
+        method: str = ClusterMethodsNames.DBSCAN_NAME,
+        params_to_opt: Optional[dict[str, list[str | float | int | list[Any]]]] = None,
     ) -> ClusteringResults:
         """
         Método que ejecuta la optimización del método de clusterización y guarda el
@@ -230,7 +228,7 @@ class AstroObjectProject:
             Columnas usadas en la clusterización.
         method: str, default dbscan
             Método de clusterización utilizado.
-        params_to_opt:  dict[str, list[str,float, int, list[Any]]]
+        params_to_opt: Optional[dict[str, list[str | float | int | list[Any]]]]
             Parámetros a optimizar.
 
         Returns
@@ -277,6 +275,7 @@ class AstroObjectProject:
             Eje de la figura.
         """
         df_hvs_candidates = self.get_data(hvs_candidates_name, index_hvs_candidates)
+
         df_gc = self.clustering_results.gc
         df_source_x = self.xsource.results
         df_source_x = df_source_x[df_source_x.main_id == self.astro_object.main_id]
@@ -297,12 +296,8 @@ class AstroObjectProject:
         index_hvs_candidates: Optional[int] = None,
         factor_sigma: float = 1.0,
         hvs_pm: float = 150,
-        df_isochrone: Optional[pd.DataFrame] = None,
-        color_field: str = "bp_rp",
-        magnitud_field: str = "phot_g_mean_mag",
-        isochrone_distance_module: float = 0,
-        isochrone_redding: float = 0,
         legend: bool = True,
+        **kwargs,
     ) -> tuple[plt.Figure, plt.Axes]:
         """
         Función que genera la gráfica del Color Magnitud Diagram. S
@@ -338,18 +333,17 @@ class AstroObjectProject:
             Eje de la gráfica.
         """
         df_hvs_candidates = self.get_data(hvs_candidates_name, index_hvs_candidates)
+
         selected = self.clustering_results.selected_hvs(df_hvs_candidates, factor_sigma, hvs_pm)
 
         if isinstance(self.clustering_results, ClusteringResults):
             fig, ax = cmd_with_cluster(
                 df_catalog=self.clustering_results.df_stars,
                 labels=self.clustering_results.labels,
-                df_isochrone=df_isochrone,
-                color_field=color_field,
-                magnitud_field=magnitud_field,
-                isochrone_distance_module=isochrone_distance_module,
-                isochrone_redding=isochrone_redding,
+                **kwargs,
             )
+            color_field = kwargs.get("color_field", "bp_rp")
+            magnitud_field = kwargs.get("magnitud_field", "phot_g_mean_mag")
             ax.scatter(
                 x=selected[color_field],
                 y=selected[magnitud_field],
