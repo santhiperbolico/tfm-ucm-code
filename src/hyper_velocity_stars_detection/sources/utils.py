@@ -176,6 +176,19 @@ def fix_parallax(df_data: pd.DataFrame, warnings: bool = True) -> pd.DataFrame:
         Datos con la columna extra de parallax_corrected. En el caso de que exista la columna
         la modifica.
     """
+    needed_columns = [
+        "parallax",
+        "phot_g_mean_mag",
+        "nu_eff_used_in_astrometry",
+        "nu_eff_used_in_astrometry",
+        "pseudocolour",
+        "ecl_lat",
+        "astrometric_params_solved",
+    ]
+    if not np.isin(needed_columns, df_data.columns).all():
+        df_data["parallax_corrected"] = np.nan
+        return df_data
+
     zpt.load_tables()
     parallax = df_data["parallax"].values
     phot_g_mean_mag = df_data["phot_g_mean_mag"].values
