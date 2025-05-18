@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Any, Optional, Self, Tuple, Union
+from typing import Any, Optional, Self, Tuple, Type, Union
 
 import numpy as np
 import pandas as pd
@@ -15,11 +15,16 @@ from hyper_velocity_stars_detection.data_storage import (
     StorageObjectPickle,
 )
 from hyper_velocity_stars_detection.tools.clustering_methods import (
-    ClusterMethods,
+    DBSCAN,
+    HDBSCAN,
     ClusterMethodsNames,
+    GaussianMixtureClustering,
+    KMeans,
     get_cluster_method,
     get_default_params_distribution,
 )
+
+ClusterMethods = Type[DBSCAN | KMeans | HDBSCAN | GaussianMixtureClustering]
 
 DEFAULT_COLS = ["pm", "parallax"]
 DEFAULT_COLS_CLUS = DEFAULT_COLS + ["bp_rp", "phot_g_mean_mag"]
@@ -109,8 +114,10 @@ def get_main_cluster(labels: np.ndarray[int]) -> int:
         Valor de la etiqueta del cluster con mayor volumen.
     """
     unique_lab = np.unique(labels[labels > -1])
-    j = np.argmax(np.bincount(labels[labels > -1]))
-    return int(unique_lab[j])
+    if unique_lab.size > 0:
+        j = np.argmax(np.bincount(labels[labels > -1]))
+        return int(unique_lab[j])
+    return -1
 
 
 def score_cluster(df: pd.DataFrame, columns: list[str], labels: np.ndarray) -> float:
