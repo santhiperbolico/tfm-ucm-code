@@ -207,6 +207,7 @@ class AstroObjectProject:
         n_trials: int = 100,
         method: str = ClusterMethodsNames.DBSCAN_NAME,
         params_to_opt: Optional[dict[str, list[str | float | int | list[Any]]]] = None,
+        reference_cluster: Optional[pd.Series] = None,
     ) -> ClusteringResults:
         """
         Método que ejecuta la optimización del método de clusterización y guarda el
@@ -245,6 +246,7 @@ class AstroObjectProject:
             n_trials=n_trials,
             method=method,
             params_to_opt=params_to_opt,
+            reference_cluster=reference_cluster,
         )
         return self.clustering_results
 

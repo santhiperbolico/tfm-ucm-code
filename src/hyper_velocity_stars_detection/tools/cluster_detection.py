@@ -28,6 +28,7 @@ ClusterMethods = Type[DBSCAN | KMeans | HDBSCAN | GaussianMixtureClustering]
 
 DEFAULT_COLS = ["pm", "parallax"]
 DEFAULT_COLS_CLUS = DEFAULT_COLS + ["bp_rp", "phot_g_mean_mag"]
+COLUMNS_CLUSTER = "parallax", "pmra", "pmdec"
 
 
 class DistributionTrialDontExist(Exception):
@@ -99,7 +100,42 @@ def get_distribution_trial(trial: Trial, trial_values: list[Union[str, int, floa
         )
 
 
-def get_main_cluster(labels: np.ndarray[int]) -> int:
+def get_distance_from_references(
+    labels: np.ndarray, cluster_data: pd.DataFrame, reference_cluster: pd.Series
+) -> np.ndarray:
+    """
+    Función que calcula las distancias para cada uno de los cluster con los datos de referencia.
+
+    Parameters
+    ----------
+    labels: np.ndarray,
+        Etiqueta de cada elemento del cluster data.
+    cluster_data: pd.DataFrame,
+        Datos de las estrellas analizados.
+    reference_cluster: pd.DataFrame
+        Datos de referencia del cluster
+
+    Returns
+    -------
+    distances: np.ndarray
+        Distancias para cada cluster encontrado.
+
+    """
+    mean_cluster_dr2 = reference_cluster[COLUMNS_CLUSTER].iloc[0, :].values
+    unique_labels = np.unique(labels)
+    distances = np.zeros(unique_labels.size)
+    for i, label in enumerate(unique_labels):
+        gc = cluster_data.loc[labels == label]
+        mean_cluster = gc[COLUMNS_CLUSTER].mean().values
+        distances[i] = np.sqrt(np.linalg.norm(mean_cluster_dr2 - mean_cluster))
+    return distances
+
+
+def get_main_cluster(
+    labels: np.ndarray[int],
+    cluster_data: Optional[pd.DataFrame] = None,
+    reference_cluster: Optional[pd.Series] = None,
+) -> int:
     """
     Función que calcula el cluster mayoritario
 
@@ -107,6 +143,10 @@ def get_main_cluster(labels: np.ndarray[int]) -> int:
     ----------
     labels: np.ndarray
         Arrays con las etiquetas asociadas a los cluster
+    cluster_data:  Optional[pd.DataFrame] = None
+        Datos de las estrellas analizados.
+    reference_cluster:  Optional[pd.Series] = None
+        Datos de referencia del cluster
 
     Returns
     -------
@@ -114,10 +154,15 @@ def get_main_cluster(labels: np.ndarray[int]) -> int:
         Valor de la etiqueta del cluster con mayor volumen.
     """
     unique_lab = np.unique(labels[labels > -1])
-    if unique_lab.size > 0:
-        j = np.argmax(np.bincount(labels[labels > -1]))
-        return int(unique_lab[j])
-    return -1
+    if unique_lab.size == 0:
+        return -1
+    j = np.argmax(np.bincount(labels[labels > -1]))
+    if isinstance(reference_cluster, pd.Series) and isinstance(cluster_data, pd.DataFrame):
+        distances = get_distance_from_references(
+            labels[labels > -1], cluster_data, reference_cluster
+        )
+        j = np.argmin(distances)
+    return int(unique_lab[j])
 
 
 def score_cluster(df: pd.DataFrame, columns: list[str], labels: np.ndarray) -> float:
@@ -196,7 +241,12 @@ class ClusteringResults:
         mask = np.isin(self.labels, self.main_label)
         return self.df_stars[mask]
 
-    def set_main_label(self, main_label: Optional[int | list[int]] = None) -> None:
+    def set_main_label(
+        self,
+        main_label: Optional[int | list[int]] = None,
+        cluster_data: Optional[pd.DataFrame] = None,
+        reference_cluster: Optional[pd.DataFrame] = None,
+    ) -> None:
         """
         Método que modifica la etiqueta principal del cluster
         Parameters
@@ -204,9 +254,13 @@ class ClusteringResults:
         main_label: Optional[int | list[int]], default None
             Etiqueta que se quiere utilizar ocmo principal. Por defecto se
             utiliza la mayoritaria.
+        cluster_data:  Optional[pd.DataFrame] = None
+            Datos de las estrellas analizados.
+        reference_cluster:  Optional[pd.Series] = None
+            Datos de referencia del cluster
         """
         if main_label is None:
-            self.main_label = get_main_cluster(self.labels)
+            self.main_label = get_main_cluster(self.labels, cluster_data, reference_cluster)
             return None
         self.main_label = main_label
         return None
@@ -322,6 +376,7 @@ def optimize_clustering(
     n_trials: int = 100,
     method: str = ClusterMethodsNames.DBSCAN_NAME,
     params_to_opt: Optional[dict[str, list[str | float | int | list[Any]]]] = None,
+    reference_cluster: Optional[pd.Series] = None,
 ) -> ClusteringResults:
     """
     Función que clusteriza los datos del catálogo usando las columnas columns_to_clus
@@ -389,6 +444,6 @@ def optimize_clustering(
 
     clustering = clustering_class(**best_params)
     clustering.fit(data)
-    main_label = get_main_cluster(clustering.labels_)
+    main_label = get_main_cluster(clustering.labels_, data, reference_cluster)
     results = ClusteringResults(df_stars, columns, clustering.labels_, clustering, main_label)
     return results
