@@ -3,3 +3,4 @@
 # Jupyter
 jupyterlab
 notebook
+python-dotenv
