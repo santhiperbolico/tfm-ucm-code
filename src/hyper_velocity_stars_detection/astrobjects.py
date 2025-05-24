@@ -206,6 +206,8 @@ class AstroObjectProject:
         max_cluster: int = 10,
         n_trials: int = 100,
         method: str = ClusterMethodsNames.DBSCAN_NAME,
+        scaler_method: str | None = "standard",
+        noise_method: str | None = None,
         params_to_opt: Optional[dict[str, list[str | float | int | list[Any]]]] = None,
         reference_cluster: Optional[pd.Series] = None,
     ) -> ClusteringResults:
@@ -229,6 +231,10 @@ class AstroObjectProject:
             Columnas usadas en la clusterización.
         method: str, default dbscan
             Método de clusterización utilizado.
+        scaler_method: str | None = "standard",
+            Método utilizado para escalar los datos.
+        noise_method: str | None = None,
+            Método utilizado para eliminar ruido de la muestra.
         params_to_opt: Optional[dict[str, list[str | float | int | list[Any]]]]
             Parámetros a optimizar.
 
@@ -245,6 +251,8 @@ class AstroObjectProject:
             max_cluster=max_cluster,
             n_trials=n_trials,
             method=method,
+            scaler_method=scaler_method,
+            noise_method=noise_method,
             params_to_opt=params_to_opt,
             reference_cluster=reference_cluster,
         )

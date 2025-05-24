@@ -7,7 +7,6 @@ import pandas as pd
 from attr import attrs
 from optuna import create_study
 from optuna.trial import Trial
-from sklearn.preprocessing import StandardScaler
 
 from hyper_velocity_stars_detection.data_storage import (
     ContainerSerializerZip,
@@ -17,10 +16,10 @@ from hyper_velocity_stars_detection.data_storage import (
 from hyper_velocity_stars_detection.tools.clustering_methods import (
     DBSCAN,
     HDBSCAN,
+    ClusteringDetection,
     ClusterMethodsNames,
     GaussianMixtureClustering,
     KMeans,
-    get_cluster_method,
     get_default_params_distribution,
 )
 
@@ -100,71 +99,6 @@ def get_distribution_trial(trial: Trial, trial_values: list[Union[str, int, floa
         )
 
 
-def get_distance_from_references(
-    labels: np.ndarray, cluster_data: pd.DataFrame, reference_cluster: pd.Series
-) -> np.ndarray:
-    """
-    Función que calcula las distancias para cada uno de los cluster con los datos de referencia.
-
-    Parameters
-    ----------
-    labels: np.ndarray,
-        Etiqueta de cada elemento del cluster data.
-    cluster_data: pd.DataFrame,
-        Datos de las estrellas analizados.
-    reference_cluster: pd.DataFrame
-        Datos de referencia del cluster
-
-    Returns
-    -------
-    distances: np.ndarray
-        Distancias para cada cluster encontrado.
-
-    """
-    mean_cluster_dr2 = reference_cluster[COLUMNS_CLUSTER].iloc[0, :].values
-    unique_labels = np.unique(labels)
-    distances = np.zeros(unique_labels.size)
-    for i, label in enumerate(unique_labels):
-        gc = cluster_data.loc[labels == label]
-        mean_cluster = gc[COLUMNS_CLUSTER].mean().values
-        distances[i] = np.sqrt(np.linalg.norm(mean_cluster_dr2 - mean_cluster))
-    return distances
-
-
-def get_main_cluster(
-    labels: np.ndarray[int],
-    cluster_data: Optional[pd.DataFrame] = None,
-    reference_cluster: Optional[pd.Series] = None,
-) -> int:
-    """
-    Función que calcula el cluster mayoritario
-
-    Parameters
-    ----------
-    labels: np.ndarray
-        Arrays con las etiquetas asociadas a los cluster
-    cluster_data:  Optional[pd.DataFrame] = None
-        Datos de las estrellas analizados.
-    reference_cluster:  Optional[pd.Series] = None
-        Datos de referencia del cluster
-
-    Returns
-    -------
-    label_cluster: int
-        Valor de la etiqueta del cluster con mayor volumen.
-    """
-    unique_lab = np.unique(labels[labels > -1])
-    if unique_lab.size == 0:
-        return -1
-    j = np.argmax(np.bincount(labels[labels > -1]))
-    if isinstance(reference_cluster, pd.Series) and isinstance(cluster_data, pd.DataFrame):
-        distances = get_distance_from_references(
-            labels[labels > -1], cluster_data, reference_cluster
-        )
-        j = np.argmin(distances)
-    return int(unique_lab[j])
-
-
 def score_cluster(df: pd.DataFrame, columns: list[str], labels: np.ndarray) -> float:
     """
     Función que devuelve al suma de la dispersión de las columnas para cada cluster
@@ -204,7 +138,7 @@ class ClusteringResults:
     df_stars: pd.DataFrame
     columns: list[str]
     labels: np.ndarray[int]
-    clustering: ClusterMethods
+    clustering: ClusteringDetection
     main_label: Optional[int | list[int]] = None
 
     _storage = ContainerSerializerZip(
@@ -212,7 +146,6 @@ class ClusteringResults:
             "df_stars": StorageObjectPandasCSV(),
             "columns": StorageObjectPickle(),
             "labels": StorageObjectPickle(),
-            "clustering": StorageObjectPickle(),
             "main_label": StorageObjectPickle(),
         }
     )
@@ -260,7 +193,7 @@ class ClusteringResults:
             Datos de referencia del cluster
         """
         if main_label is None:
-            self.main_label = get_main_cluster(self.labels, cluster_data, reference_cluster)
+            self.main_label = self.clustering.get_main_cluster(cluster_data, reference_cluster)
             return None
         self.main_label = main_label
         return None
@@ -294,12 +227,12 @@ class ClusteringResults:
         path: str
             Ruta donde se quiere guardar los archivos.
         """
+        self.clustering.save(path)
         path_name = os.path.join(path, "stars_clustering")
         container = {
             "df_stars": self.df_stars,
             "columns": self.columns,
             "labels": self.labels,
-            "clustering": self.clustering,
             "main_label": self.main_label,
         }
         self._storage.save(path_name, container)
@@ -319,6 +252,7 @@ class ClusteringResults:
         object: Self
             Objeto instanciado.
         """
+        clustering = ClusteringDetection.load(path)
         path_name = os.path.join(path, "stars_clustering.zip")
         try:
             params = cls._storage.load(path_name)
@@ -329,6 +263,7 @@ class ClusteringResults:
             _ = serializers.pop("main_label")
             storage = ContainerSerializerZip(serializers=serializers)
             params = storage.load(path_name)
+        params["clustering"] = clustering
         return cls(**params)
 
     def selected_hvs(
@@ -375,6 +310,8 @@ def optimize_clustering(
     max_cluster: int = 10,
     n_trials: int = 100,
     method: str = ClusterMethodsNames.DBSCAN_NAME,
+    scaler_method: str | None = "standard",
+    noise_method: str | None = None,
     params_to_opt: Optional[dict[str, list[str | float | int | list[Any]]]] = None,
     reference_cluster: Optional[pd.Series] = None,
 ) -> ClusteringResults:
@@ -396,6 +333,10 @@ def optimize_clustering(
         Columnas usadas en la clusterización.
     method: str, default dbscan
         Método de clusterización utilizado.
+    scaler_method: str | None = "standard",
+        Método utilizado para escalar los datos.
+    noise_method: str | None = None,
+        Método utilizado para eliminar ruido de la muestra.
     params_to_opt:  dict[str, list[str|float|int|list[Any]]]]
         Parámetros a optimizar.
 
@@ -409,11 +350,8 @@ def optimize_clustering(
     if columns_to_clus is None:
         columns_to_clus = DEFAULT_COLS_CLUS
 
-    data = StandardScaler().fit_transform(df_stars[columns_to_clus])
     mask_nan = df_stars[columns_to_clus].isna().any(axis=1).values
-    df_stars = df_stars[~mask_nan]
-    data = data[~mask_nan]
-    clustering_class = get_cluster_method(method)
+    df_stars = df_stars.loc[~mask_nan, :]
 
     if params_to_opt is None:
         params_to_opt = {}
@@ -423,8 +361,13 @@ def optimize_clustering(
 
     def objective(trial: Trial) -> float:
         params = get_params_model_trial(trial, params_distribution)
-        clustering = clustering_class(**params)
-        clustering.fit(data)
+        clustering = ClusteringDetection.from_cluster_params(
+            cluster_method=method,
+            cluster_params=params,
+            scaler_method=scaler_method,
+            noise_method=noise_method,
+        )
+        clustering.fit(df_stars[columns_to_clus])
         labels = clustering.labels_
         n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
         penalty_clusters = 0 if n_clusters_ < max_cluster else n_clusters_
@@ -442,8 +385,13 @@ def optimize_clustering(
     for key, param in best_params.items():
         logging.info(f"\t {key}: {param}")
 
-    clustering = clustering_class(**best_params)
-    clustering.fit(data)
-    main_label = get_main_cluster(clustering.labels_, data, reference_cluster)
+    clustering = ClusteringDetection.from_cluster_params(
+        cluster_method=method,
+        cluster_params=best_params,
+        scaler_method=scaler_method,
+        noise_method=noise_method,
+    )
+    clustering.fit(df_stars[columns_to_clus])
+    main_label = clustering.get_main_cluster(df_stars, reference_cluster)
     results = ClusteringResults(df_stars, columns, clustering.labels_, clustering, main_label)
     return results

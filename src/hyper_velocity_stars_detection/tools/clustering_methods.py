@@ -1,9 +1,18 @@
-from typing import Optional, Type
+import os
+from typing import Optional, Self, Type
 
+import numpy as np
 import pandas as pd
 from attr import attrs
 from sklearn.cluster import DBSCAN, HDBSCAN, AgglomerativeClustering, KMeans
 from sklearn.mixture import GaussianMixture
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
+
+from hyper_velocity_stars_detection.data_storage import ContainerSerializerZip, StorageObjectPickle
+from hyper_velocity_stars_detection.tools.noise_outliers_methods import (
+    NoiseMethod,
+    get_noise_method,
+)
 
 
 class GaussianMixtureClustering:
@@ -23,6 +32,7 @@ class GaussianMixtureClustering:
 
 
 ClusterMethods = Type[DBSCAN | KMeans | HDBSCAN | GaussianMixtureClustering]
+ScalersMethods = Type[StandardScaler | MinMaxScaler | None]
 MAX_CLUSTER_DEFAULT = 10
 
 
@@ -255,6 +265,34 @@ def get_cluster_method(method: str) -> ClusterMethods:
         raise ValueError(f"No existe el método {method}, prueba con : {list(methods.keys())}")
 
 
+def get_scaler_method(method: str | None, params: Optional[dict] = None) -> ScalersMethods:
+    """
+    Función que nos devuelve el método de scaler.
+
+    Parameters
+    ----------
+    method: str | None
+        Nombre del método a utilizar. Si es None devuelve None.
+    params: Optional[dict] = None
+        Parámetros del scaler.
+
+    Returns
+    -------
+    scaler: ScalersMethods
+        Modelo de clusterización
+    """
+    if method is None:
+        return None
+    if params is None:
+        params = {}
+
+    methods = {"minmax": MinMaxScaler, "standard": StandardScaler}
+    try:
+        return methods[method](**params)
+    except KeyError:
+        raise ValueError(f"No existe el método {method}, prueba con : {list(methods.keys())}")
+
+
 def get_default_params_distribution(
     method: str, max_cluster: int = None, params_to_opt: Optional[dict] = None
 ) -> dict:
@@ -286,3 +324,223 @@ def get_default_params_distribution(
         return methods[method].get_params_distribution(max_cluster, params_to_opt)
     except KeyError:
         raise ValueError(f"No existe el método {method}, prueba con : {list(methods.keys())}")
+
+
+def get_distance_from_references(
+    labels: np.ndarray,
+    cluster_data: pd.DataFrame,
+    reference_cluster: pd.Series,
+    columns_cluster: list[str],
+) -> np.ndarray:
+    """
+    Función que calcula las distancias para cada uno de los cluster con los datos de referencia.
+
+    Parameters
+    ----------
+    labels: np.ndarray,
+        Etiqueta de cada elemento del cluster data.
+    cluster_data: pd.DataFrame,
+        Datos de las estrellas analizados.
+    reference_cluster: pd.DataFrame
+        Datos de referencia del cluster
+
+    Returns
+    -------
+    distances: np.ndarray
+        Distancias para cada cluster encontrado.
+
+    """
+    mean_cluster_dr2 = reference_cluster[columns_cluster].iloc[0, :].values
+    unique_labels = np.unique(labels)
+    distances = np.zeros(unique_labels.size)
+    for i, label in enumerate(unique_labels):
+        gc = cluster_data.loc[labels == label]
+        mean_cluster = gc[columns_cluster].mean().values
+        distances[i] = np.sqrt(np.linalg.norm(mean_cluster_dr2 - mean_cluster))
+    return distances
+
+
+@attrs(auto_attribs=True)
+class ClusteringDetection:
+    model: ClusterMethods
+    scaler: ScalersMethods = None
+    noise_method: NoiseMethod | None = None
+    labels_: np.ndarray = None
+
+    _storage = ContainerSerializerZip(
+        serializers={
+            "model": StorageObjectPickle(),
+            "noise_method": StorageObjectPickle(),
+            "scaler": StorageObjectPickle(),
+        }
+    )
+
+    def fit(
+        self,
+        x: np.ndarray,
+        scaler_params: Optional[dict] = None,
+        noise_params: Optional[dict] = None,
+        cluster_params: Optional[dict] = None,
+    ):
+        """
+        Método que entrena el scaler, método de eliminación de outliers y clusterización
+        asociados.
+
+        Parameters
+        ----------
+        x: np.ndarray
+            Datos a clusterizar.
+        scaler_params:Optional[dict] = None
+            Parámetros asociados al scaler. Por defecto es None
+        noise_params: Optional[dict] = None,
+            Parámetros asociados a la eliminación de outlier. Por defecto es None
+        cluster_params: Optional[dict] = None,
+            Parámetros asociados al método de clusterización.
+        """
+        if scaler_params is None:
+            scaler_params = {}
+        if noise_params is None:
+            noise_params = {}
+        if cluster_params is None:
+            cluster_params = {}
+        x_to_fit = x.copy()
+        if self.scaler is not None:
+            x_to_fit = self.scaler.fit_transform(x, **scaler_params)
+        if self.noise_method is not None:
+            mask = self.noise_method.fit_predict(x_to_fit, **noise_params)
+            x_to_fit = x_to_fit[mask > -1]
+        self.model.fit(x_to_fit, **cluster_params)
+        _ = self.predict(x)
+
+    def preprocessing(self, x: np.ndarray):
+        """
+        Método que preprocesa usando el scaler y método de eliminación de outliers.
+        asociados.
+
+        Parameters
+        ----------
+        x: np.ndarray
+            Datos a clusterizar.
+
+        Returns
+        -------
+        x_pre: np.ndarray
+            Preprocesado de los datos.
+        """
+        x_pre = x.copy()
+        if self.scaler is not None:
+            x_pre = self.scaler.transform(x_pre)
+        if self.noise_method is not None:
+            mask = self.noise_method.predict(x_pre)
+            x_pre = x_pre[mask > -1]
+        return x_pre
+
+    def get_main_cluster(
+        self,
+        cluster_data: Optional[pd.DataFrame] = None,
+        reference_cluster: Optional[pd.Series] = None,
+    ) -> int:
+        """
+        Función que calcula el cluster mayoritario
+
+        Parameters
+        ----------
+        cluster_data:  Optional[pd.DataFrame] = None
+            Datos de las estrellas analizados.
+        reference_cluster:  Optional[pd.Series] = None
+            Datos de referencia del cluster
+
+        Returns
+        -------
+        label_cluster: int
+            Valor de la etiqueta del cluster con mayor volumen.
+        """
+        labels = self.labels_
+        unique_lab = np.unique(labels[labels > -1])
+        if unique_lab.size == 0:
+            return -1
+        j = np.argmax(np.bincount(labels[labels > -1]))
+        if isinstance(reference_cluster, pd.Series) and isinstance(cluster_data, pd.DataFrame):
+            distances = get_distance_from_references(
+                labels=labels[labels > -1],
+                cluster_data=self.preprocessing(cluster_data),
+                reference_cluster=reference_cluster,
+                columns_cluster=cluster_data.columns,
+            )
+            j = np.argmin(distances)
+        return int(unique_lab[j])
+
+    def save(self, path: str):
+        """
+        Método que guarda los reusltados en un archivo zip.
+
+        Parameters
+        ----------
+        path: str
+            Ruta donde se quiere guardar los archivos.
+        """
+        path_name = os.path.join(path, "clustering_method")
+        container = {"model": self.model, "noise": self.noise_method, "scaler": self.scaler}
+        self._storage.save(path_name, container)
+
+    def predict(self, x: np.ndarray):
+        """
+        Método que predice usando el scaler, método de eliminación de outliers y clusterización
+        asociados.
+
+        Parameters
+        ----------
+        x: np.ndarray
+            Datos a clusterizar.
+
+        Returns
+        -------
+        prediction: np.ndarray
+            Predicción de la clusterización.
+        """
+        x_pred = x.copy()
+        self.labels_ = np.ones(x_pred.shape[0])
+        if self.scaler is not None:
+            x_pred = self.scaler.transform(x_pred)
+        if self.noise_method is not None:
+            mask = self.noise_method.predict(x_pred)
+            self.labels_[mask > -1] = self.model.predict(x_pred[mask > -1])
+            self.labels_[mask == -1] = -1
+            return self.labels_
+
+        self.labels_ = self.model.predict(x_pred)
+        return self.labels_
+
+    @classmethod
+    def from_cluster_params(
+        cls,
+        cluster_method: str,
+        cluster_params: dict,
+        scaler_method: Optional[str] = None,
+        scaler_params: Optional[dict] = None,
+        noise_method: Optional[str] = None,
+        noise_params: Optional[dict] = None,
+    ) -> Self:
+        clustering = get_cluster_method(cluster_method)(**cluster_params)
+        scaler = get_scaler_method(scaler_method, scaler_params)
+        noise = get_noise_method(noise_method, noise_params)
+        return cls(clustering, scaler, noise)
+
+    @classmethod
+    def load(cls, path: str) -> Self:
+        """
+        Método que carga los resultados de la clusterización.
+
+        Parameters
+        ----------
+        path: str
+            Ruta donde se quiere guardar
+
+        Returns
+        -------
+        object: Self
+            Objeto instanciado.
+        """
+        path_name = os.path.join(path, "clustering_method.zip")
+        params = cls._storage.load(path_name)
+        return cls(**params)

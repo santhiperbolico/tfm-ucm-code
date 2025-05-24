@@ -376,6 +376,7 @@ def cluster_representation_with_hvs(
     hvs_pm: float = 150,
     df_source_x: Optional[pd.DataFrame] = None,
     legend: bool = True,
+    parallax_corrected: bool = True,
 ) -> tuple[plt.Figure, plt.Axes]:
     """
     Función que representa el cluster con las candidatas HVS en coordenadas galacticas
@@ -403,14 +404,15 @@ def cluster_representation_with_hvs(
     ax: Axes
         Eje de la figura.
     """
+    parallax_col = "parallax_corrected" if parallax_corrected else "parallax"
 
     parallax_range = [
-        df_gc.parallax.mean() - factor_sigma * df_gc.parallax.std(),
-        df_gc.parallax.mean() + factor_sigma * df_gc.parallax.std(),
+        df_gc[parallax_col].mean() - factor_sigma * df_gc[parallax_col].std(),
+        df_gc[parallax_col].mean() + factor_sigma * df_gc[parallax_col].std(),
     ]
 
-    mask_p = (df_hvs_candidates.parallax > parallax_range[0]) & (
-        df_hvs_candidates.parallax < parallax_range[1]
+    mask_p = (df_hvs_candidates[parallax_col] > parallax_range[0]) & (
+        df_hvs_candidates[parallax_col] < parallax_range[1]
     )
 
     pm_candidates = df_hvs_candidates.pm_kms - df_gc.pm_kms.mean()
