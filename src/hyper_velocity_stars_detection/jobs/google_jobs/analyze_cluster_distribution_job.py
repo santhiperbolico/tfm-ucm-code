@@ -103,22 +103,24 @@ if __name__ == "__main__":
                     data_name = "df_1_c0"
                 df_stars = project.data_list[0].data[data_name]
                 df_stars = df_stars[~df_stars[columns_params.get("7p")].isna()]
-
-                for key, columns in columns_params.items():
-                    logging.info("-- Procesando %s: %s." % (cluster_name, key))
-                    columns_to_clus = columns_params.get(key)
-                    results = is_multivariate_normality(df_stars[columns_to_clus], max_sample=5000)
-                    cluster_analyze.loc[pos_table] = pd.Series(
-                        {
-                            "name": cluster_name,
-                            "columns": key,
-                            "statistic_name": results.statistic_name,
-                            "statistic": results.statistic,
-                            "pval": results.pval,
-                            "is_normal": results.is_multivariate_normal,
-                        }
-                    )
-                    pos_table += 1
+                if df_stars.shape[0] > 3:
+                    for key, columns in columns_params.items():
+                        logging.info("-- Procesando %s: %s." % (cluster_name, key))
+                        columns_to_clus = columns_params.get(key)
+                        results = is_multivariate_normality(
+                            df_stars[columns_to_clus], max_sample=5000
+                        )
+                        cluster_analyze.loc[pos_table] = pd.Series(
+                            {
+                                "name": cluster_name,
+                                "columns": key,
+                                "statistic_name": results.statistic_name,
+                                "statistic": results.statistic,
+                                "pval": results.pval,
+                                "is_normal": results.is_multivariate_normal,
+                            }
+                        )
+                        pos_table += 1
 
     with TemporaryDirectory() as temp_path:
         file_name = "cluster_analyze_distribution.csv"
