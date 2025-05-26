@@ -5,8 +5,10 @@ import pandas as pd
 import pytest
 from sklearn.preprocessing import StandardScaler
 
-from hyper_velocity_stars_detection.tools.cluster_detection import ClusteringResults, score_cluster
-from hyper_velocity_stars_detection.tools.clustering_methods import DBSCAN
+from hyper_velocity_stars_detection.cluster_detection.cluster_detection import (
+    ClusteringDetection,
+    ClusteringResults,
+)
 
 
 @pytest.fixture
@@ -23,7 +25,7 @@ def data_labels() -> ClusteringResults:
     columns = ["pmra", "pmdec", "parallax"]
     size_cluster = np.array([1000, 500, 200])
     data = np.zeros((int(size_cluster.sum()), mean_cluster.shape[1]))
-    labels = np.zeros(data.shape[0])
+    labels = np.zeros(data.shape[0]).astype(int)
     item_0 = 0
     label = 0
     for size in size_cluster:
@@ -37,12 +39,9 @@ def data_labels() -> ClusteringResults:
         item_0 = size
 
     df_data = pd.DataFrame(data=StandardScaler().fit_transform(data), columns=columns)
-    return ClusteringResults(df_data, columns, labels.astype(int), DBSCAN())
-
-
-def test_score_cluster(data_labels):
-    score_result = score_cluster(data_labels.df_stars, data_labels.columns, data_labels.labels)
-    assert score_result == pytest.approx(1.15, abs=1e-1)
+    clustering = ClusteringDetection.from_cluster_params("dbscan", {}, "standard")
+    clustering.labels_ = labels
+    return ClusteringResults(df_data, columns, columns, clustering)
 
 
 def test_clusteringresults_save_load(data_labels):

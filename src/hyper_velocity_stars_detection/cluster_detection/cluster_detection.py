@@ -77,6 +77,7 @@ class ClusteringDetection:
             "model": StorageObjectPickle(),
             "noise_method": StorageObjectPickle(),
             "scaler": StorageObjectPickle(),
+            "labels_": StorageObjectPickle(),
         }
     )
 
@@ -196,7 +197,12 @@ class ClusteringDetection:
             Ruta donde se quiere guardar los archivos.
         """
         path_name = os.path.join(path, "clustering_method")
-        container = {"model": self.model, "noise_method": self.noise_method, "scaler": self.scaler}
+        container = {
+            "model": self.model,
+            "noise_method": self.noise_method,
+            "scaler": self.scaler,
+            "labels_": self.labels_,
+        }
         self._storage.save(path_name, container)
 
     @classmethod
@@ -261,7 +267,6 @@ class ClusteringResults:
     df_stars: pd.DataFrame
     columns: list[str]
     columns_to_clus: list[str]
-    labels: np.ndarray
     clustering: ClusteringDetection
     main_label: Optional[int | list[int]] = None
 
@@ -270,7 +275,6 @@ class ClusteringResults:
             "df_stars": StorageObjectPandasCSV(),
             "columns": StorageObjectPickle(),
             "columns_to_clus": StorageObjectPickle(),
-            "labels": StorageObjectPickle(),
             "main_label": StorageObjectPickle(),
         }
     )
@@ -299,6 +303,13 @@ class ClusteringResults:
         mask = np.isin(self.labels, self.main_label)
         gc = self.df_stars[mask]
         return gc
+
+    @property
+    def labels(self) -> np.ndarray:
+        """
+        Etiquetas de cada una de la muestra de estrellas clusterizada.
+        """
+        return self.clustering.labels_
 
     def remove_outliers_gc(self) -> pd.DataFrame:
         """
@@ -374,7 +385,6 @@ class ClusteringResults:
             "df_stars": self.df_stars,
             "columns": self.columns,
             "columns_to_clus": self.columns_to_clus,
-            "labels": self.labels,
             "main_label": self.main_label,
         }
         self._storage.save(path_name, container)
