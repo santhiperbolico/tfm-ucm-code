@@ -4,6 +4,7 @@ from typing import Optional, Tuple
 import numpy as np
 import pandas as pd
 from attr import attrs
+from scipy.cluster.hierarchy import fcluster, linkage
 
 from hyper_velocity_stars_detection.cluster_detection.clustering_methods import (
     ClusterMethods,
@@ -26,7 +27,7 @@ def get_distance_from_references(
     labels: np.ndarray,
     cluster_data: pd.DataFrame | np.ndarray,
     reference_cluster: pd.Series,
-    columns_cluster: list[str],
+    columns_cluster: list[str] = None,
 ) -> np.ndarray:
     """
     Función que calcula las distancias para cada uno de los cluster con los datos de referencia.
@@ -48,6 +49,8 @@ def get_distance_from_references(
     distances: np.ndarray
         Distancias para cada cluster encontrado.
     """
+    if columns_cluster is None:
+        columns_cluster = reference_cluster.index
     if isinstance(cluster_data, np.ndarray):
         cluster_data = pd.DataFrame(cluster_data, columns=columns_cluster)
     mean_cluster_dr2 = reference_cluster[columns_cluster].values
@@ -150,12 +153,15 @@ class ClusteringDetection:
         if self.noise_method is not None:
             mask = self.noise_method.predict(x_pre)
             x_pre = x_pre[mask > -1]
+        if isinstance(x, pd.DataFrame):
+            x_pre = pd.DataFrame(x_pre, columns=x.columns)
         return x_pre
 
     def get_main_cluster(
         self,
         cluster_data: Optional[pd.DataFrame] = None,
         reference_cluster: Optional[pd.Series] = None,
+        labels: Optional[np.ndarray] = None,
     ) -> int:
         """
         Función que calcula el cluster mayoritario
@@ -166,13 +172,16 @@ class ClusteringDetection:
             Datos de las estrellas analizados.
         reference_cluster:  Optional[pd.Series] = None
             Datos de referencia del cluster
+        labels: Optional[np.ndarray] = None
+            Etiquetas usadas para calcular el cluster principal.
 
         Returns
         -------
         label_cluster: int
             Valor de la etiqueta del cluster con mayor volumen.
         """
-        labels = self.labels_
+        if not isinstance(labels, np.ndarray):
+            labels = self.labels_
         unique_lab = np.unique(labels[labels > -1])
         if unique_lab.size == 0:
             return -1
@@ -182,7 +191,6 @@ class ClusteringDetection:
                 labels=labels[labels > -1],
                 cluster_data=self.preprocessing(cluster_data),
                 reference_cluster=reference_cluster,
-                columns_cluster=cluster_data.columns,
             )
             j = np.argmin(distances)
         return int(unique_lab[j])
@@ -331,9 +339,11 @@ class ClusteringResults:
         main_label: Optional[int | list[int]] = None,
         cluster_data: Optional[pd.DataFrame] = None,
         reference_cluster: Optional[pd.DataFrame] = None,
+        group_labels: bool = False,
     ) -> None:
         """
         Método que modifica la etiqueta principal del cluster
+
         Parameters
         ----------
         main_label: Optional[int | list[int]], default None
@@ -343,9 +353,19 @@ class ClusteringResults:
             Datos de las estrellas analizados.
         reference_cluster:  Optional[pd.Series] = None
             Datos de referencia del cluster
+        group_labels: bool, default False
+            Indica si se quiere agrupar las etiquetas del cluster
         """
         if main_label is None:
-            self.main_label = self.clustering.get_main_cluster(cluster_data, reference_cluster)
+            grouped_labels = None
+            if group_labels:
+                grouped_labels = self.group_labels()
+            main_label = self.clustering.get_main_cluster(
+                cluster_data, reference_cluster, grouped_labels
+            )
+            if group_labels:
+                main_label = np.unique(self.labels[grouped_labels == main_label]).tolist()
+            self.main_label = main_label
             return None
         self.main_label = main_label
         return None
@@ -369,6 +389,31 @@ class ClusteringResults:
         """
 
         return np.unique(self.labels[self.labels > -1], return_counts=return_counts)
+
+    def group_labels(self, threshold: float = 0.5) -> np.ndarray:
+        """
+        Método que calcula las etiquetas agrupadas.
+
+        Parameters
+        ----------
+        threshold: float,default 0.5
+            Umbral usado en la agrupación de los centroides.
+
+        Returns
+        -------
+        grouped_lables: np.ndarray
+            Etiquetas agrupadas.
+        """
+        labels = self.get_labels()
+        centroids = pd.DataFrame(columns=self.columns)
+        for label in labels:
+            centroids.loc[label] = self.df_stars.loc[self.labels == label, self.columns].mean()
+        centroids_grid = linkage(centroids.values, method="ward")
+        cluster_groups = fcluster(centroids_grid, t=threshold, criterion="distance")
+        grouped_labels = self.labels.copy()
+        for label in cluster_groups:
+            grouped_labels[np.isin(grouped_labels, labels[cluster_groups == label])] = label
+        return grouped_labels
 
     def save(self, path: str):
         """

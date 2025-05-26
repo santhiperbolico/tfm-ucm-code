@@ -239,6 +239,7 @@ class AstroObjectProject:
         columns: Optional[list[str]] = None,
         columns_to_clus: Optional[list[str]] = None,
         reference_cluster: Optional[pd.Series] = None,
+        group_labels: bool = False,
         index_data: Optional[int] = None,
     ) -> ClusteringResults:
         """
@@ -263,6 +264,8 @@ class AstroObjectProject:
             Parámetros del método de clusterización.
         reference_cluster: Optional[pd.Series] = None
             Datos de refrencia para buscar el cluster que más se aproxime a estos datos.
+        group_labels: bool = False,
+            Indica si se quiere agrupar las etiquetas parecidas.
         index_data: Optional[int] = None
             Key del astrdata que se quiere utilizar.
 
@@ -288,15 +291,14 @@ class AstroObjectProject:
             noise_method=noise_method,
         )
         clustering_best.fit(df_stars[columns_to_clus])
-        main_label = clustering_best.get_main_cluster(df_stars, reference_cluster)
         self.clustering_results = ClusteringResults(
             df_stars=df_stars,
             columns=columns,
             columns_to_clus=columns_to_clus,
-            labels=clustering_best.labels_,
             clustering=clustering_best,
-            main_label=main_label,
+            main_label=None,
         )
+        self.clustering_results.set_main_label(None, df_stars, reference_cluster, group_labels)
         return self.clustering_results
 
     def optimize_cluster_detection(
@@ -309,6 +311,7 @@ class AstroObjectProject:
         n_trials: int = DEFAULT_ITERATIONS,
         params_methods: ParamsOptimizator = DEFAULT_PARAMS_OPTIMIZATOR,
         reference_cluster: Optional[pd.Series] = None,
+        group_labels: bool = False,
     ) -> ClusteringResults:
         """
         Método que ejecuta la optimización del método de clusterización y guarda el
@@ -332,6 +335,8 @@ class AstroObjectProject:
             Lista de la distribución de parámetros que se quiere utilizar.
         reference_cluster: Optional[pd.Series] = None
             Datos de refrencia para buscar el cluster que más se aproxime a estos datos.
+        group_labels: bool = False,
+            Indica si se quiere agrupar las etiquetas parecidas.
 
         Returns
         -------
@@ -382,6 +387,7 @@ class AstroObjectProject:
             columns=columns,
             columns_to_clus=columns_to_clus,
             reference_cluster=reference_cluster,
+            group_labels=group_labels,
         )
         return self.clustering_results
 
