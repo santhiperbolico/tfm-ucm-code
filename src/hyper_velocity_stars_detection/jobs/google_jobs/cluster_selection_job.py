@@ -106,7 +106,7 @@ def load_save_project(
             params = DefaultParamsClusteringDetection().params.copy()
             columns = params.get("columns")
             reference = clusters_dr2.loc[clusters_dr2.MAIN_ID == project.name, columns]
-            if not reference.empty():
+            if not reference.empty:
                 params["reference_cluster"] = reference.iloc[0]
             if project.get_data("df_1_c2").shape[0] < 16000:
                 params["data_name"] = "df_1_c0"
