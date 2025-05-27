@@ -8,8 +8,7 @@ import pandas as pd
 from google.cloud import storage
 from tqdm import tqdm
 
-from hyper_velocity_stars_detection.astrobjects import AstroObjectProject
-from hyper_velocity_stars_detection.jobs.google_jobs.utils import download_from_gcs
+from hyper_velocity_stars_detection.jobs.google_jobs.utils import download_from_gcs, load_project
 from hyper_velocity_stars_detection.jobs.utils import (
     DefaultParamsClusteringDetection,
     ProjectDontExist,
@@ -77,48 +76,35 @@ def load_save_project(
 
     Returns
     -------
-    project: AstroObjectProject
-        Proyecto donde se guardan los resultados.
+    path_zip: str
+        Path con el archivo ZIP
     """
     client = storage.Client(project=project_id)
     bucket = client.bucket(bucket_name)
 
-    blobs = bucket.list_blobs(prefix=cluster_name)
     logging.info(f"Procesando elemento {cluster_name}")
-
     with TemporaryDirectory() as temp_path:
-        path_project = os.path.join(temp_path, cluster_name)
-        os.makedirs(path_project, exist_ok=True)
-        zip_f = []
-        for blob in blobs:
-            file_name = blob.name.split("/")[-1]
-            if blob.name.endswith(".zip") and f"{cluster_name}_r" in file_name:
-                local_path = os.path.join(path_project, file_name)
-                logging.info(f"\t - Descargando {file_name} desde {cluster_name}...")
-                blob.download_to_filename(local_path)
-                zip_f.append(local_path)
+        try:
+            project = load_project(cluster_name, project_id, bucket_name, temp_path)
+        except ProjectDontExist:
+            raise ProjectDontExist("No hay datos descargados del proyecto")
 
-        if len(zip_f) > 0:
-            project = AstroObjectProject.load_project(cluster_name, temp_path)
-            for data in project.data_list:
-                data.fix_parallax(warnings=False)
-            logging.info("\t - Calculando cluster por defecto.")
-            params = DefaultParamsClusteringDetection().params.copy()
-            columns = params.get("columns")
-            reference = clusters_dr2.loc[clusters_dr2.MAIN_ID == project.name, columns]
-            if not reference.empty:
-                params["reference_cluster"] = reference.iloc[0]
-            if project.get_data("df_1_c2").shape[0] < 16000:
-                params["data_name"] = "df_1_c0"
+        logging.info("\t - Calculando cluster por defecto.")
+        params = DefaultParamsClusteringDetection().params.copy()
+        columns = params.get("columns")
+        reference = clusters_dr2.loc[clusters_dr2.MAIN_ID == project.name, columns]
+        if not reference.empty:
+            params["reference_cluster"] = reference.iloc[0]
+        if project.get_data("df_1_c2").shape[0] < 16000:
+            params["data_name"] = "df_1_c0"
 
-            _ = project.optimize_cluster_detection(**params)
-            project.save_project(to_zip=True)
-            blob_path = cluster_name + ".zip"
-            path_zip = os.path.join(temp_path, blob_path)
-            blob = bucket.blob(blob_path)
-            blob.upload_from_filename(path_zip)
-            return path_zip
-    raise ProjectDontExist("No hay datos descargados del proyecto")
+        _ = project.optimize_cluster_detection(**params)
+        project.save_project(to_zip=True)
+        blob_path = cluster_name + ".zip"
+        path_zip = os.path.join(temp_path, blob_path)
+        blob = bucket.blob(blob_path)
+        blob.upload_from_filename(path_zip)
+        return path_zip
 
 
 if __name__ == "__main__":

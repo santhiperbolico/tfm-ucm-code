@@ -298,7 +298,9 @@ class AstroObjectProject:
             clustering=clustering_best,
             main_label=None,
         )
-        self.clustering_results.set_main_label(None, df_stars, reference_cluster, group_labels)
+        self.clustering_results.set_main_label(
+            None, df_stars[columns_to_clus], reference_cluster, group_labels
+        )
         return self.clustering_results
 
     def optimize_cluster_detection(
