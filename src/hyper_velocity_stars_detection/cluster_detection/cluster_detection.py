@@ -189,7 +189,7 @@ class ClusteringDetection:
         if isinstance(reference_cluster, pd.Series) and isinstance(cluster_data, pd.DataFrame):
             distances = get_distance_from_references(
                 labels=labels,
-                cluster_data=self.preprocessing(cluster_data),
+                cluster_data=cluster_data,
                 reference_cluster=reference_cluster,
             )
             j = np.argmin(distances)

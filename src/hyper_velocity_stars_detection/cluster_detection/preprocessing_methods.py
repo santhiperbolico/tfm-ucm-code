@@ -171,7 +171,7 @@ class LocalOutlierNoise(NoiseMethod):
         prediction: np.ndarray
             Predicción de outliers (-1) o inliers (1).
         """
-        return self.model.predict(x)
+        return self.model.fit_predict(x)
 
     def fit_predict(self, x: np.ndarray, **kwargs) -> np.ndarray:
         """
