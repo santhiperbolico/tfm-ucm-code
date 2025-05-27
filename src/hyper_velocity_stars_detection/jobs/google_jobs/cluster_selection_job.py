@@ -80,7 +80,7 @@ def load_save_project(cluster_name: str, project_id: str, bucket_name: str) -> s
             if project.get_data("df_1_c2").shape[0] < 16000:
                 params["data_name"] = "df_1_c0"
 
-            _ = project.cluster_detection(**params)
+            _ = project.optimize_cluster_detection(**params)
             project.save_project(to_zip=True)
             blob_path = cluster_name + ".zip"
             path_zip = os.path.join(temp_path, blob_path)
