@@ -54,7 +54,7 @@ def get_distance_from_references(
     if isinstance(cluster_data, np.ndarray):
         cluster_data = pd.DataFrame(cluster_data, columns=columns_cluster)
     mean_cluster_dr2 = reference_cluster[columns_cluster].values
-    unique_labels = np.unique(labels)
+    unique_labels = np.unique(labels[labels > -1])
     distances = np.zeros(unique_labels.size)
     for i, label in enumerate(unique_labels):
         gc = cluster_data.loc[labels == label]
@@ -188,7 +188,7 @@ class ClusteringDetection:
         j = np.argmax(np.bincount(labels[labels > -1]))
         if isinstance(reference_cluster, pd.Series) and isinstance(cluster_data, pd.DataFrame):
             distances = get_distance_from_references(
-                labels=labels[labels > -1],
+                labels=labels,
                 cluster_data=self.preprocessing(cluster_data),
                 reference_cluster=reference_cluster,
             )
