@@ -361,6 +361,7 @@ class AstroObjectProject:
 
         study = create_study(direction="minimize")
         study.optimize(objective, n_trials=n_trials)
+
         best_params = study.best_params
         best_method_key = best_params.pop("params_distribution")
         best_method = params_methods.get_params_method(best_method_key)
@@ -389,6 +390,10 @@ class AstroObjectProject:
             reference_cluster=reference_cluster,
             group_labels=group_labels,
         )
+
+        path_project = os.path.join(self.path, self.astro_object.name)
+        df_trials = study.trials_dataframe()
+        df_trials.to_csv(os.path.join(path_project, "trials_optimizator.csv"))
         return self.clustering_results
 
     def plot_cluster(

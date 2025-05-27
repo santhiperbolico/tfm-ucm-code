@@ -75,6 +75,8 @@ def load_save_project(cluster_name: str, project_id: str, bucket_name: str) -> s
 
         if len(zip_f) > 0:
             project = AstroObjectProject.load_project(cluster_name, temp_path)
+            for data in project.data_list:
+                data.fix_parallax(warnings=False)
             logging.info("\t - Calculando cluster por defecto.")
             params = DefaultParamsClusteringDetection().params.copy()
             if project.get_data("df_1_c2").shape[0] < 16000:

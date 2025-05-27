@@ -18,8 +18,8 @@ class ProjectDontExist(Exception):
 
 class DefaultParamsClusteringDetection:
     data_name = "df_1_c2"
-    columns = ["pmra", "pmdec", "parallax"]
-    columns_to_clus = ["pmra", "pmdec", "parallax", "bp_rp", "phot_g_mean_mag"]
+    columns = ["pmra", "pmdec", "parallax_corrected"]
+    columns_to_clus = ["pmra", "pmdec", "parallax_corrected", "bp_rp", "phot_g_mean_mag"]
     max_cluster = 5
     n_trials = 500
 
