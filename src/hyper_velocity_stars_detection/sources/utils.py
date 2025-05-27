@@ -21,6 +21,30 @@ HEASARC_COLUMNS = [
 ]
 
 
+def get_main_id(name: str) -> str | None:
+    """
+    Función que extrae un  identificador único del objeto. Si no lo encuentra devuelve None.
+
+    Parameters
+    ----------
+    name: str
+        Nombre a buscar.
+
+    Returns
+    -------
+    main_id: str | None
+        Devuelve el identificador si lo encuentra
+    """
+    try:
+        result = Simbad.query_object(name)
+        if result:
+            main_id = "_".join(result["MAIN_ID"][0].split())
+            return main_id
+    except Exception as e:
+        logging.info(f"Error con {name}: {e}")
+    return None
+
+
 def get_skycoords(
     result: Table,
     unit_ra: Unit,
