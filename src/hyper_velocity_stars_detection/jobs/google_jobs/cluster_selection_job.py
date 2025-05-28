@@ -34,6 +34,7 @@ def get_params(argv: list[str]) -> argparse.Namespace:
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", default="data/globular_clusters/")
+    parser.add_argument("--cluster", default=None)
     parser.add_argument("--init_pos", default=0, type=int)
     parser.add_argument("--cache", action=argparse.BooleanOptionalAction)
     return parser.parse_args(argv)
@@ -118,7 +119,10 @@ if __name__ == "__main__":
 
     cluster_catalog = download_from_gcs(project_id, bucket_name, "mwgc.dat.txt", args.path)
     all_clusters = read_catalog_file(cluster_catalog)
-    selected_clusters = all_clusters[args.init_pos :]
+    selected_clusters = all_clusters
+    if args.init_pos:
+        selected_clusters = all_clusters[args.init_pos :]
+
     if args.cache:
         selected_clusters = []
         logging.info("Uso de la Cache")
@@ -130,6 +134,9 @@ if __name__ == "__main__":
             if not blob.exists():
                 selected_clusters.append(cluster)
         logging.info("Se van a descargar %i de %i" % (len(selected_clusters), len(all_clusters)))
+
+    if args.cluster:
+        selected_clusters = [cluster for cluster in all_clusters if cluster.name == args.cluster]
 
     clusters_dr2 = get_reference_cluster()
     for cluster in tqdm(selected_clusters, desc="Procesando elementos", unit="item"):
