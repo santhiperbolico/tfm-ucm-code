@@ -357,7 +357,9 @@ class AstroObjectProject:
 
         df_stars_to_clus = df_stars.copy()
         if df_stars_to_clus.shape[0] > MAX_SAMPLE_OPTIMIZE:
-            df_stars_to_clus = df_stars_to_clus.sample(MAX_SAMPLE_OPTIMIZE, replace=False)
+            df_stars_to_clus = df_stars_to_clus.sort_values(
+                by=["pmra_error", "pmdec_error", "parallax_error"], ascending=True
+            ).iloc[:MAX_SAMPLE_OPTIMIZE]
 
         objective = params_methods.get_objective_function(
             df_stars=df_stars_to_clus,
