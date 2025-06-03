@@ -40,7 +40,7 @@ def get_params(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def get_reference_cluster() -> pd.DataFrame:
+def get_reference_cluster(cluster_name: str | None = None) -> pd.DataFrame:
     """
     Función que descarga los datos del catálogo de referencia.
 
@@ -53,6 +53,8 @@ def get_reference_cluster() -> pd.DataFrame:
     clusters_dr2 = clusters_dr2.rename(
         columns={"pmRA_": "pmra", "pmDE": "pmdec", "parallax": "parallax_corrected"}
     )
+    if cluster_name:
+        clusters_dr2 = clusters_dr2[clusters_dr2.Name == cluster_name]
     clusters_dr2["MAIN_ID"] = clusters_dr2["Name"].apply(get_main_id)
     return clusters_dr2
 
@@ -96,7 +98,7 @@ def load_save_project(
         reference = clusters_dr2.loc[clusters_dr2.MAIN_ID == project.name, columns]
         if not reference.empty:
             params["reference_cluster"] = reference.iloc[0]
-        if project.get_data("df_1_c2").shape[0] < 16000:
+        if project.get_data("df_1_c2").shape[0] < 10000:
             params["data_name"] = "df_1_c0"
 
         _ = project.optimize_cluster_detection(**params)
@@ -138,7 +140,7 @@ if __name__ == "__main__":
     if args.cluster:
         selected_clusters = [cluster for cluster in all_clusters if cluster.name == args.cluster]
 
-    clusters_dr2 = get_reference_cluster()
+    clusters_dr2 = get_reference_cluster(args.cluster)
     for cluster in tqdm(selected_clusters, desc="Procesando elementos", unit="item"):
         try:
             path_zip = load_save_project(cluster.name, project_id, bucket_name, clusters_dr2)

@@ -31,6 +31,7 @@ from hyper_velocity_stars_detection.tools.cluster_representations import (
 DEFAULT_COLS = ["parallax", "pmra", "pmdec"]
 DEFAULT_COLS_CLUS = DEFAULT_COLS + ["bp_rp", "phot_g_mean_mag"]
 DEFAULT_ITERATIONS = 500
+MAX_SAMPLE_OPTIMIZE = 20000
 
 DEFAULT_PARAMS_OPTIMIZATOR = ParamsOptimizator(
     [
@@ -354,8 +355,12 @@ class AstroObjectProject:
         mask_nan = df_stars[columns_to_clus].isna().any(axis=1).values
         df_stars = df_stars.loc[~mask_nan, :]
 
+        df_stars_to_clus = df_stars.copy()
+        if df_stars_to_clus.shape[0] > MAX_SAMPLE_OPTIMIZE:
+            df_stars_to_clus = df_stars_to_clus.sample(MAX_SAMPLE_OPTIMIZE, replace=False)
+
         objective = params_methods.get_objective_function(
-            df_stars=df_stars,
+            df_stars=df_stars_to_clus,
             columns=columns,
             columns_to_clus=columns_to_clus,
             max_cluster=max_cluster,
