@@ -225,7 +225,7 @@ if __name__ == "__main__":
             df_results.loc[index] = (
                 cluster_name,
                 gc.shape[0],
-                gc.parallax.mean(),
+                gc.parallax_corrected.mean(),
                 gc.parallax.std(),
                 gc.pmra.mean(),
                 gc.pmra.std(),
