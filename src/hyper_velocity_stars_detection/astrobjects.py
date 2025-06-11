@@ -37,14 +37,14 @@ DEFAULT_PARAMS_OPTIMIZATOR = ParamsOptimizator(
     [
         ParamsDistribution(
             "dbscan",
-            ["standard", "minmax", None],
-            ["isolation_forest_method", "local_outlier_method", None],
+            ["standard"],
+            [None],
             None,
         ),
         ParamsDistribution(
             "hdbscan",
-            ["standard", "minmax", None],
-            ["isolation_forest_method", "local_outlier_method", None],
+            ["standard"],
+            [None],
             None,
         ),
         ParamsDistribution(
@@ -223,11 +223,21 @@ class AstroObjectProject:
         df_r: pd.DataFrame
             Tabla de datos con las estrellas del campo visual a evaluar.
         """
+        parallax_field = "parallax"
+
         if isinstance(index_data, int):
-            return self.data_list[index_data].get_data(data_name)
+            df_stars = self.data_list[index_data].get_data(data_name)
+            if "parallax_corrected" in df_stars.columns:
+                parallax_field = "parallax_corrected"
+            df_stars = df_stars[df_stars[parallax_field] > 0]
+            return df_stars
         for astro_data in self.data_list:
             if data_name in astro_data.data:
-                return astro_data.get_data(data_name)
+                df_stars = astro_data.get_data(data_name)
+                if "parallax_corrected" in df_stars.columns:
+                    parallax_field = "parallax_corrected"
+                df_stars = df_stars[df_stars[parallax_field] > 0]
+                return df_stars
         raise ValueError(f"El catalogo {data_name} no se ha encontrado en el proyecto")
 
     def cluster_detection(
@@ -302,6 +312,7 @@ class AstroObjectProject:
         self.clustering_results.set_main_label(
             None, df_stars[columns_to_clus], reference_cluster, group_labels
         )
+
         return self.clustering_results
 
     def optimize_cluster_detection(
