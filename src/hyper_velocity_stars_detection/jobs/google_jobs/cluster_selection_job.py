@@ -8,6 +8,7 @@ import pandas as pd
 from google.cloud import storage
 from tqdm import tqdm
 
+from hyper_velocity_stars_detection.astrobjects import GM_PARAMS_OPTIMIZATOR
 from hyper_velocity_stars_detection.jobs.google_jobs.utils import download_from_gcs, load_project
 from hyper_velocity_stars_detection.jobs.utils import (
     DefaultParamsClusteringDetection,
@@ -101,6 +102,8 @@ def load_save_project(
         if project.get_data("df_1_c2").shape[0] < 5000:
             params["data_name"] = "df_1_c0"
 
+        if project.get_data(params["data_name"]).shape[0] < 15:
+            params["params_methods"] = GM_PARAMS_OPTIMIZATOR
         _ = project.optimize_cluster_detection(**params)
         project.save_project(to_zip=True)
         blob_path = cluster_name + ".zip"

@@ -56,6 +56,17 @@ DEFAULT_PARAMS_OPTIMIZATOR = ParamsOptimizator(
     ]
 )
 
+GM_PARAMS_OPTIMIZATOR = ParamsOptimizator(
+    [
+        ParamsDistribution(
+            "gaussian_mixture",
+            ["standard", None],
+            [None],
+            None,
+        )
+    ]
+)
+
 
 @attrs
 class AstroObjectProject:
