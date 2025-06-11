@@ -26,7 +26,7 @@ from hyper_velocity_stars_detection.data_storage import (
 def get_distance_from_references(
     labels: np.ndarray,
     cluster_data: pd.DataFrame | np.ndarray,
-    reference_cluster: pd.Series,
+    reference_cluster: pd.Series | pd.DataFrame,
     columns_cluster: list[str] = None,
 ) -> np.ndarray:
     """
@@ -39,7 +39,7 @@ def get_distance_from_references(
     cluster_data: pd.DataFrame | np.ndarray,
         Datos de las estrellas analizados. Si se el pasa un array debe ser con los de las columnas
         correspondientes a columns_cluster.
-    reference_cluster: pd.DataFrame
+    reference_cluster: pd.DataFrame | pd.DataFrame
         Datos de referencia del cluster
     columns_cluster: list[str],
         Lista de columnas utilizadas en el clustering
@@ -49,11 +49,14 @@ def get_distance_from_references(
     distances: np.ndarray
         Distancias para cada cluster encontrado.
     """
+    rf_cluster = reference_cluster.copy()
+    if isinstance(rf_cluster, pd.DataFrame):
+        rf_cluster = reference_cluster.iloc[0, :]
     if columns_cluster is None:
-        columns_cluster = reference_cluster.index
+        columns_cluster = rf_cluster.index
     if isinstance(cluster_data, np.ndarray):
         cluster_data = pd.DataFrame(cluster_data, columns=columns_cluster)
-    mean_cluster_dr2 = reference_cluster[columns_cluster].values
+    mean_cluster_dr2 = rf_cluster[columns_cluster].values
     unique_labels = np.unique(labels[labels > -1])
     distances = np.zeros(unique_labels.size)
     for i, label in enumerate(unique_labels):
@@ -185,8 +188,12 @@ class ClusteringDetection:
         unique_lab = np.unique(labels[labels > -1])
         if unique_lab.size == 0:
             return -1
+        if unique_lab.size == 1:
+            return int(unique_lab[0])
         j = np.argmax(np.bincount(labels[labels > -1]))
-        if isinstance(reference_cluster, pd.Series) and isinstance(cluster_data, pd.DataFrame):
+
+        if_reference_cluster = isinstance(reference_cluster, (pd.Series, pd.DataFrame))
+        if if_reference_cluster and isinstance(cluster_data, pd.DataFrame):
             distances = get_distance_from_references(
                 labels=labels,
                 cluster_data=cluster_data,
@@ -290,6 +297,13 @@ class ClusteringResults:
     def __attrs_post_init__(self):
         if self.main_label is None:
             self.set_main_label()
+        parallax_field = "parallax"
+        if "parallax_corrected" in self.df_stars.columns:
+            parallax_field = "parallax_corrected"
+        if parallax_field in self.df_stars.columns:
+            mask_parallax = self.df_stars[parallax_field] > 0
+            self.df_stars = self.df_stars[mask_parallax]
+            self.clustering.labels_ = self.clustering.labels_[mask_parallax]
 
     def __str__(self) -> str:
         n_clusters_ = len(set(self.labels)) - (1 if -1 in self.labels else 0)
@@ -356,6 +370,8 @@ class ClusteringResults:
         group_labels: bool, default False
             Indica si se quiere agrupar las etiquetas del cluster
         """
+        if not isinstance(cluster_data, pd.DataFrame):
+            cluster_data = self.df_stars
         if main_label is None:
             grouped_labels = None
             if group_labels:
