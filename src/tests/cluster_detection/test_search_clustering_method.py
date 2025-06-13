@@ -45,4 +45,4 @@ def data_labels() -> ClusteringResults:
 
 def test_score_cluster(data_labels):
     score_result = score_cluster(data_labels.df_stars, data_labels.columns, data_labels.labels)
-    assert score_result == pytest.approx(1.15, abs=1e-1)
+    assert score_result == pytest.approx(0.77, abs=1e-1)

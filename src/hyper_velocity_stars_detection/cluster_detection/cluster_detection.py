@@ -302,7 +302,7 @@ class ClusteringResults:
             parallax_field = "parallax_corrected"
         if parallax_field in self.df_stars.columns:
             mask_parallax = self.df_stars[parallax_field] > 0
-            self.df_stars = self.df_stars[mask_parallax]
+            self.df_stars = self.df_stars[mask_parallax].reset_index(drop=True)
             self.clustering.labels_ = self.clustering.labels_[mask_parallax]
 
     def __str__(self) -> str:
