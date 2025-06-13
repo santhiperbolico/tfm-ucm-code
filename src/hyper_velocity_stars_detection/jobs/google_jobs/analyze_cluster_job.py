@@ -268,7 +268,11 @@ if __name__ == "__main__":
                 xsource_distance,
             )
             _ = project.plot_cmd(
-                hvs_candidates_name="df_6_c1", factor_sigma=1.0, hvs_pm=150, legend=True
+                hvs_candidates_name="df_6_c1",
+                factor_sigma=1.0,
+                hvs_pm=150,
+                legend=True,
+                clusters=project.clustering_results.main_label,
             )
 
             _ = project.plot_cluster(
@@ -279,7 +283,11 @@ if __name__ == "__main__":
                 factor_size=50,
             )
             _ = project.plot_cmd(
-                hvs_candidates_name="df_6_c1", factor_sigma=2.0, hvs_pm=150, legend=True
+                hvs_candidates_name="df_6_c1",
+                factor_sigma=2.0,
+                hvs_pm=150,
+                legend=True,
+                clusters=project.clustering_results.main_label,
             )
 
             _ = project.plot_cluster(
