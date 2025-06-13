@@ -190,6 +190,13 @@ if __name__ == "__main__":
             "e_HVS_pmDE",
             "HVS_Distance",
             "HVS_cosTheta",
+            "HVS_2_count",
+            "HVS_2_pmRA_",
+            "e_HVS_2_pmRA_",
+            "HVS_2_pmDE",
+            "e_HVS_2_pmDE",
+            "HVS_2_Distance",
+            "HVS_2_cosTheta",
             "XS_count",
             "XS_Distance",
         ]
@@ -207,20 +214,30 @@ if __name__ == "__main__":
     ):
         project = extract_globular_cluster(cluster_name, selected_clusters)
         if project is not None:
-            gc = project.clustering_results.gc
+            gc = project.clustering_results.remove_outliers_gc()
             gc_pm = np.array([gc.pmra.mean(), gc.pmdec.mean()])
             hvs = project.clustering_results.selected_hvs(
                 df_hvs_candidates=project.get_data("df_6_c1"),
                 factor_sigma=1.0,
                 hvs_pm=150,
             )
+            hvs_2 = project.clustering_results.selected_hvs(
+                df_hvs_candidates=project.get_data("df_6_c1"),
+                factor_sigma=2.0,
+                hvs_pm=150,
+            )
             hvs_distance = get_distance_from_center(project.astro_object, hvs)
+            hvs_distance_2 = get_distance_from_center(project.astro_object, hvs_2)
             hvs_pm = hvs[["pmra", "pmdec"]].values
+            hvs_pm_2 = hvs_2[["pmra", "pmdec"]].values
             xsource = project.xsource.results[project.xsource.results.main_id == project.name]
             xsource_distance = get_distance_from_center(project.astro_object, xsource)
 
             hvs_cos_theta = (gc_pm * hvs_pm).sum(axis=1) / (
                 np.linalg.norm(hvs_pm, axis=1) * np.linalg.norm(gc_pm)
+            )
+            hvs_cos_theta_2 = (gc_pm * hvs_pm_2).sum(axis=1) / (
+                np.linalg.norm(hvs_pm_2, axis=1) * np.linalg.norm(gc_pm)
             )
             df_results.loc[index] = (
                 cluster_name,
@@ -240,21 +257,45 @@ if __name__ == "__main__":
                 hvs.pmdec.std(),
                 hvs_distance,
                 hvs_cos_theta.mean(),
+                hvs_2.shape[0],
+                hvs_2.pmra.mean(),
+                hvs_2.pmra.std(),
+                hvs_2.pmdec.mean(),
+                hvs_2.pmdec.std(),
+                hvs_distance_2,
+                hvs_cos_theta_2.mean(),
                 xsource.shape[0],
                 xsource_distance,
             )
             _ = project.plot_cmd(
-                hvs_candidates_name="df_6_c1", factor_sigma=1.0, hvs_pm=150, legend=False
+                hvs_candidates_name="df_6_c1", factor_sigma=1.0, hvs_pm=150, legend=True
             )
 
             _ = project.plot_cluster(
                 hvs_candidates_name="df_6_c1",
                 factor_sigma=1,
                 hvs_pm=150,
-                legend=False,
+                legend=True,
                 factor_size=50,
             )
-            for file_name in ["cluster_df_6_c1_hvs_150.png", "cmd_hvs_150.png"]:
+            _ = project.plot_cmd(
+                hvs_candidates_name="df_6_c1", factor_sigma=2.0, hvs_pm=150, legend=True
+            )
+
+            _ = project.plot_cluster(
+                hvs_candidates_name="df_6_c1",
+                factor_sigma=2,
+                hvs_pm=150,
+                legend=True,
+                factor_size=50,
+            )
+            files = [
+                "cluster_df_6_c1_hvs_150_sigma_1.png",
+                "cluster_df_6_c1_hvs_150_sigma_2.png",
+                "cmd_hvs_150_sigma_1.png",
+                "cmd_hvs_150_sigma_2.png",
+            ]
+            for file_name in files:
                 save_results(
                     file_name=file_name,
                     path=os.path.join(args.path, cluster_name),

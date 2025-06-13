@@ -440,8 +440,6 @@ class AstroObjectProject:
             Nombre del astro data que se quiere utilizar para seleccionar las HVS.
         index_hvs_candidates: Optional[int] = None,
             Key del astrdata que se quiere utilizar para seleccionar las HVS.
-        factor_sigma: float, default 1
-            Proporción del sigma del paralaje que se quiere usar para seleccionar las HVS
         hvs_pm: float, default
             Movimiento propio mínimo en km por segundo en la selección de HVS
         legend: bool, default True
@@ -463,8 +461,10 @@ class AstroObjectProject:
         )
         hvs_pm = kwargs.get("hvs_pm")
         ax.set_title(f"Cluster {hvs_candidates_name} hvs > {hvs_pm} km/s")
+        factor_sigma = kwargs.get("factor_sigma", 1.0)
+        filename = f"cluster_{hvs_candidates_name}_hvs_{hvs_pm}_sigma_{factor_sigma:.0f}"
         StorageObjectFigures.save(
-            path=os.path.join(self.path_project, f"cluster_{hvs_candidates_name}_hvs_{hvs_pm}"),
+            path=os.path.join(self.path_project, filename),
             value=fig,
         )
         return fig, ax
@@ -534,9 +534,8 @@ class AstroObjectProject:
             if legend:
                 plt.legend()
             ax.set_title(f"CMD with {hvs_candidates_name} hvs > {hvs_pm} km/s")
-            StorageObjectFigures.save(
-                path=os.path.join(self.path_project, f"cmd_hvs_{hvs_pm}"), value=fig
-            )
+            filename = f"cmd_hvs_{hvs_pm}_sigma_{factor_sigma:.0f}"
+            StorageObjectFigures.save(path=os.path.join(self.path_project, filename), value=fig)
             return fig, ax
         raise RuntimeError("Genera un clustering antes de ejecutar este método.")
 
