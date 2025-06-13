@@ -8,20 +8,64 @@ from zipfile import ZipFile
 import matplotlib.pyplot as plt
 import pandas as pd
 from attr import attrib, attrs
+from optuna import create_study
 
+from hyper_velocity_stars_detection.cluster_detection.cluster_detection import (
+    ClusteringDetection,
+    ClusteringResults,
+)
+from hyper_velocity_stars_detection.cluster_detection.clustering_methods import MAX_CLUSTER_DEFAULT
+from hyper_velocity_stars_detection.cluster_detection.search_clustering_method import (
+    ParamsDistribution,
+    ParamsOptimizator,
+)
 from hyper_velocity_stars_detection.data_storage import InvalidFileFormat, StorageObjectFigures
 from hyper_velocity_stars_detection.sources.clusters_catalogs import get_ratio_m_l
 from hyper_velocity_stars_detection.sources.source import AstroObject, AstroObjectData, get_radio
 from hyper_velocity_stars_detection.sources.xray_source import XSource
-from hyper_velocity_stars_detection.tools.cluster_detection import (
-    ClusteringResults,
-    optimize_clustering,
-)
 from hyper_velocity_stars_detection.tools.cluster_representations import (
     cluster_representation_with_hvs,
     cmd_with_cluster,
 )
-from hyper_velocity_stars_detection.tools.clustering_methods import ClusterMethodsNames
+
+DEFAULT_COLS = ["parallax", "pmra", "pmdec"]
+DEFAULT_COLS_CLUS = DEFAULT_COLS + ["bp_rp", "phot_g_mean_mag"]
+DEFAULT_ITERATIONS = 500
+MAX_SAMPLE_OPTIMIZE = 20000
+
+DEFAULT_PARAMS_OPTIMIZATOR = ParamsOptimizator(
+    [
+        ParamsDistribution(
+            "dbscan",
+            ["standard"],
+            [None],
+            None,
+        ),
+        ParamsDistribution(
+            "hdbscan",
+            ["standard"],
+            [None],
+            None,
+        ),
+        ParamsDistribution(
+            "gaussian_mixture",
+            ["standard", "minmax", None],
+            ["isolation_forest_method", "local_outlier_method", None],
+            None,
+        ),
+    ]
+)
+
+GM_PARAMS_OPTIMIZATOR = ParamsOptimizator(
+    [
+        ParamsDistribution(
+            "gaussian_mixture",
+            ["standard", None],
+            [None],
+            None,
+        )
+    ]
+)
 
 
 @attrs
@@ -190,23 +234,109 @@ class AstroObjectProject:
         df_r: pd.DataFrame
             Tabla de datos con las estrellas del campo visual a evaluar.
         """
+        parallax_field = "parallax"
+
         if isinstance(index_data, int):
-            return self.data_list[index_data].get_data(data_name)
+            df_stars = self.data_list[index_data].get_data(data_name)
+            if "parallax_corrected" in df_stars.columns:
+                parallax_field = "parallax_corrected"
+            df_stars = df_stars[df_stars[parallax_field] > 0]
+            return df_stars
         for astro_data in self.data_list:
             if data_name in astro_data.data:
-                return astro_data.get_data(data_name)
+                df_stars = astro_data.get_data(data_name)
+                if "parallax_corrected" in df_stars.columns:
+                    parallax_field = "parallax_corrected"
+                df_stars = df_stars[df_stars[parallax_field] > 0]
+                return df_stars
         raise ValueError(f"El catalogo {data_name} no se ha encontrado en el proyecto")
 
     def cluster_detection(
         self,
         data_name: str,
+        cluster_method: str,
+        cluster_params: Optional[dict[str, Any]] = None,
+        scaler_method: str | None = None,
+        noise_method: str | None = None,
+        columns: Optional[list[str]] = None,
+        columns_to_clus: Optional[list[str]] = None,
+        reference_cluster: Optional[pd.Series] = None,
+        group_labels: bool = False,
+        index_data: Optional[int] = None,
+    ) -> ClusteringResults:
+        """
+        Método que ejecuta la optimización del método de clusterización y guarda el
+        elemento de clustering.
+
+        Parameters
+        ----------
+        data_name:str,
+            Nombre del astro data que se quiere utilizar.
+        columns: list[str],
+            Columnas a calcular la desviación típica.
+        columns_to_clus: list[str]
+            Columnas usadas en la clusterización.
+        cluster_method: str, default dbscan
+            Método de clusterización utilizado.
+        scaler_method: str | None = None,
+            Método utilizado para escalar los datos.
+        noise_method: str | None = None,
+            Método utilizado para eliminar ruido de la muestra.
+        cluster_params: Optional[dict[str, list[str | float | int | list[Any]]]]
+            Parámetros del método de clusterización.
+        reference_cluster: Optional[pd.Series] = None
+            Datos de refrencia para buscar el cluster que más se aproxime a estos datos.
+        group_labels: bool = False,
+            Indica si se quiere agrupar las etiquetas parecidas.
+        index_data: Optional[int] = None
+            Key del astrdata que se quiere utilizar.
+
+        Returns
+        -------
+        results: ClusteringResults
+            Resultados de la optimización de clusterización
+        """
+        if cluster_params is None:
+            cluster_params = {}
+        if columns is None:
+            columns = DEFAULT_COLS
+        if columns_to_clus is None:
+            columns_to_clus = DEFAULT_COLS_CLUS
+        df_stars = self.get_data(data_name, index_data)
+        mask_nan = df_stars[columns_to_clus].isna().any(axis=1).values
+        df_stars = df_stars.loc[~mask_nan, :]
+
+        clustering_best = ClusteringDetection.from_cluster_params(
+            cluster_method=cluster_method,
+            cluster_params=cluster_params,
+            scaler_method=scaler_method,
+            noise_method=noise_method,
+        )
+        clustering_best.fit(df_stars[columns_to_clus])
+        self.clustering_results = ClusteringResults(
+            df_stars=df_stars,
+            columns=columns,
+            columns_to_clus=columns_to_clus,
+            clustering=clustering_best,
+            main_label=None,
+        )
+        self.clustering_results.set_main_label(
+            None, df_stars[columns_to_clus], reference_cluster, group_labels
+        )
+
+        return self.clustering_results
+
+    def optimize_cluster_detection(
+        self,
+        data_name: str,
         index_data: Optional[int] = None,
         columns: Optional[list[str]] = None,
         columns_to_clus: Optional[list[str]] = None,
-        max_cluster: int = 10,
-        n_trials: int = 100,
-        method: str = ClusterMethodsNames.DBSCAN_NAME,
-        params_to_opt: Optional[dict[str, list[str | float | int | list[Any]]]] = None,
+        max_cluster: int = MAX_CLUSTER_DEFAULT,
+        n_trials: int = DEFAULT_ITERATIONS,
+        params_methods: ParamsOptimizator = DEFAULT_PARAMS_OPTIMIZATOR,
+        reference_cluster: Optional[pd.Series] = None,
+        group_labels: bool = False,
     ) -> ClusteringResults:
         """
         Método que ejecuta la optimización del método de clusterización y guarda el
@@ -226,26 +356,75 @@ class AstroObjectProject:
             Número de intentos en la optimización.
         columns_to_clus: list[str]
             Columnas usadas en la clusterización.
-        method: str, default dbscan
-            Método de clusterización utilizado.
-        params_to_opt: Optional[dict[str, list[str | float | int | list[Any]]]]
-            Parámetros a optimizar.
+        params_methods: ParamsOptimizator = DEFAULT_PARAMS_OPTIMIZATOR,
+            Lista de la distribución de parámetros que se quiere utilizar.
+        reference_cluster: Optional[pd.Series] = None
+            Datos de refrencia para buscar el cluster que más se aproxime a estos datos.
+        group_labels: bool = False,
+            Indica si se quiere agrupar las etiquetas parecidas.
 
         Returns
         -------
         results: ClusteringResults
             Resultados de la optimización de clusterización
         """
+        if columns is None:
+            columns = DEFAULT_COLS
+        if columns_to_clus is None:
+            columns_to_clus = DEFAULT_COLS_CLUS
+
         df_stars = self.get_data(data_name, index_data)
-        self.clustering_results = optimize_clustering(
-            df_stars=df_stars,
+        mask_nan = df_stars[columns_to_clus].isna().any(axis=1).values
+        df_stars = df_stars.loc[~mask_nan, :]
+
+        df_stars_to_clus = df_stars.copy()
+        if df_stars_to_clus.shape[0] > MAX_SAMPLE_OPTIMIZE:
+            df_stars_to_clus = df_stars_to_clus.sort_values(
+                by=["pmra_error", "pmdec_error", "parallax_error"], ascending=True
+            ).iloc[:MAX_SAMPLE_OPTIMIZE]
+
+        objective = params_methods.get_objective_function(
+            df_stars=df_stars_to_clus,
             columns=columns,
             columns_to_clus=columns_to_clus,
             max_cluster=max_cluster,
-            n_trials=n_trials,
-            method=method,
-            params_to_opt=params_to_opt,
         )
+
+        study = create_study(direction="minimize")
+        study.optimize(objective, n_trials=n_trials)
+
+        best_params = study.best_params
+        best_method_key = best_params.pop("params_distribution")
+        best_method = params_methods.get_params_method(best_method_key)
+
+        logging.info(
+            f"Los mejores parámetros encontrados, con un score {study.best_value} "
+            f"en la iteración {study.best_trial.number} son:\n"
+        )
+        cluster_params = {}
+        for key, param in best_params.items():
+            if key.startswith(best_method_key):
+                logging.info(f"\t {key}: {param}")
+                cluster_params[key.replace("%s_" % best_method_key, "")] = param
+
+        scaler_method = cluster_params.pop("scaler_method", None)
+        noise_method = cluster_params.pop("noise_method", None)
+        self.cluster_detection(
+            data_name=data_name,
+            index_data=index_data,
+            cluster_method=best_method.cluster_method,
+            cluster_params=cluster_params,
+            scaler_method=scaler_method,
+            noise_method=noise_method,
+            columns=columns,
+            columns_to_clus=columns_to_clus,
+            reference_cluster=reference_cluster,
+            group_labels=group_labels,
+        )
+
+        path_project = os.path.join(self.path, self.astro_object.name)
+        df_trials = study.trials_dataframe()
+        df_trials.to_csv(os.path.join(path_project, "trials_optimizator.csv"))
         return self.clustering_results
 
     def plot_cluster(
@@ -261,8 +440,6 @@ class AstroObjectProject:
             Nombre del astro data que se quiere utilizar para seleccionar las HVS.
         index_hvs_candidates: Optional[int] = None,
             Key del astrdata que se quiere utilizar para seleccionar las HVS.
-        factor_sigma: float, default 1
-            Proporción del sigma del paralaje que se quiere usar para seleccionar las HVS
         hvs_pm: float, default
             Movimiento propio mínimo en km por segundo en la selección de HVS
         legend: bool, default True
@@ -284,8 +461,10 @@ class AstroObjectProject:
         )
         hvs_pm = kwargs.get("hvs_pm")
         ax.set_title(f"Cluster {hvs_candidates_name} hvs > {hvs_pm} km/s")
+        factor_sigma = kwargs.get("factor_sigma", 1.0)
+        filename = f"cluster_{hvs_candidates_name}_hvs_{hvs_pm}_sigma_{factor_sigma:.0f}"
         StorageObjectFigures.save(
-            path=os.path.join(self.path_project, f"cluster_{hvs_candidates_name}_hvs_{hvs_pm}"),
+            path=os.path.join(self.path_project, filename),
             value=fig,
         )
         return fig, ax
@@ -355,9 +534,8 @@ class AstroObjectProject:
             if legend:
                 plt.legend()
             ax.set_title(f"CMD with {hvs_candidates_name} hvs > {hvs_pm} km/s")
-            StorageObjectFigures.save(
-                path=os.path.join(self.path_project, f"cmd_hvs_{hvs_pm}"), value=fig
-            )
+            filename = f"cmd_hvs_{hvs_pm}_sigma_{factor_sigma:.0f}"
+            StorageObjectFigures.save(path=os.path.join(self.path_project, filename), value=fig)
             return fig, ax
         raise RuntimeError("Genera un clustering antes de ejecutar este método.")
 

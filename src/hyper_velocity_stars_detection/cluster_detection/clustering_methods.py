@@ -78,8 +78,6 @@ class DbscanParamsDistribution(ClusterParamsDistribution):
     params_distribution = {
         "eps": ["unif", "eps", 0.1, 1.0],
         "min_samples": ["int", "min_samples", 3, 10],
-        "metric": ["cat", "metric", ["cityblock", "euclidean", "l1", "l2", "manhattan"]],
-        "algorithm": ["cat", "algorithm", ["auto", "ball_tree", "kd_tree", "brute"]],
     }
 
 
@@ -91,8 +89,6 @@ class HdbscanParamsDistribution(ClusterParamsDistribution):
     params_distribution = {
         "min_cluster_size": ["int", "min_cluster_size", 10, 100],
         "min_samples": ["int", "min_samples", 3, 10],
-        "metric": ["cat", "metric", ["cityblock", "euclidean", "l1", "l2", "manhattan"]],
-        "algorithm": ["cat", "algorithm", ["auto", "ball_tree", "kd_tree", "brute"]],
     }
 
 

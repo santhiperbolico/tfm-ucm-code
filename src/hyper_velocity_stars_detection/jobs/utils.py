@@ -18,11 +18,10 @@ class ProjectDontExist(Exception):
 
 class DefaultParamsClusteringDetection:
     data_name = "df_1_c2"
-    columns = ["pmra", "pmdec", "parallax"]
-    columns_to_clus = ["pmra", "pmdec", "parallax", "bp_rp", "phot_g_mean_mag"]
-    max_cluster = 10
-    method = "dbscan"
-    n_trials = 100
+    columns = ["pmra", "pmdec", "parallax_corrected"]
+    columns_to_clus = ["pmra", "pmdec", "parallax_corrected", "bp_rp", "phot_g_mean_mag"]
+    max_cluster = 5
+    n_trials = 500
 
     @property
     def params(self) -> dict[str, str | list[str] | int]:
@@ -31,7 +30,6 @@ class DefaultParamsClusteringDetection:
             "columns": self.columns,
             "columns_to_clus": self.columns_to_clus,
             "max_cluster": self.max_cluster,
-            "method": self.method,
             "n_trials": self.n_trials,
         }
 
