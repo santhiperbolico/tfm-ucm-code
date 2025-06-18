@@ -129,7 +129,7 @@ class IsolationForestNoise(NoiseMethod):
             Predicción de outliers (-1) o inliers (1).
         """
         self.model = IsolationForest(**kwargs)
-        return self.model.fit_predict(x, **kwargs)
+        return self.model.fit_predict(x)
 
 
 @attrs

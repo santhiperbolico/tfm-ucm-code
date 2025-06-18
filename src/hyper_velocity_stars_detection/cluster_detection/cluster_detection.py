@@ -333,7 +333,7 @@ class ClusteringResults:
         """
         return self.clustering.labels_
 
-    def remove_outliers_gc(self) -> pd.DataFrame:
+    def remove_outliers_gc(self, random_state: int | None = None) -> pd.DataFrame:
         """
         Método que devuelve los outliers del cluster principal encontrado.
 
@@ -342,10 +342,9 @@ class ClusteringResults:
         gc: pd.DataFrame
             Datos del cluster principal sin outliers.
         """
-
         gc = self.gc
         if_model = get_noise_method("isolation_forest_method")
-        labels = if_model.fit_predict(gc[self.columns_to_clus])
+        labels = if_model.fit_predict(gc[self.columns_to_clus], random_state=random_state)
         return gc[labels > -1]
 
     def set_main_label(
@@ -476,7 +475,9 @@ class ClusteringResults:
         df_hvs_candidates: pd.DataFrame,
         factor_sigma: float = 1.0,
         hvs_pm: float = 150,
-    ):
+        parallax_corrected: bool = True,
+        random_state: int | None = None,
+    ) -> pd.DataFrame:
         """
         Función que filtra y selecciona las candidatas a HVS.
 
@@ -494,15 +495,17 @@ class ClusteringResults:
         selected: pd.DataFrame
             Estrellas seleccionadas
         """
+        gc = self.remove_outliers_gc(random_state)
+        parallax_col = "parallax_corrected" if parallax_corrected else "parallax"
         parallax_range = [
-            self.gc.parallax.mean() - factor_sigma * self.gc.parallax.std(),
-            self.gc.parallax.mean() + factor_sigma * self.gc.parallax.std(),
+            gc[parallax_col].mean() - factor_sigma * gc[parallax_col].std(),
+            gc[parallax_col].mean() + factor_sigma * gc[parallax_col].std(),
         ]
 
-        mask_p = (df_hvs_candidates.parallax > parallax_range[0]) & (
-            df_hvs_candidates.parallax < parallax_range[1]
+        mask_p = (df_hvs_candidates[parallax_col] > parallax_range[0]) & (
+            df_hvs_candidates[parallax_col] < parallax_range[1]
         )
 
-        pm_candidates = df_hvs_candidates.pm_kms - self.gc.pm_kms.mean()
+        pm_candidates = df_hvs_candidates.pm_kms - gc.pm_kms.mean()
         mask_hvs = (pm_candidates > hvs_pm) & mask_p
         return df_hvs_candidates[mask_hvs]

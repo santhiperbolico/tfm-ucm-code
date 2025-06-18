@@ -6,6 +6,7 @@ from typing import Any, Optional
 from zipfile import ZipFile
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 from attr import attrib, attrs
 from optuna import create_study
@@ -29,7 +30,8 @@ from hyper_velocity_stars_detection.tools.cluster_representations import (
 )
 
 DEFAULT_COLS = ["parallax", "pmra", "pmdec"]
-DEFAULT_COLS_CLUS = DEFAULT_COLS + ["bp_rp", "phot_g_mean_mag"]
+CMD_COLUMNS = ["bp_rp", "phot_g_mean_mag"]
+DEFAULT_COLS_CLUS = DEFAULT_COLS + CMD_COLUMNS
 DEFAULT_ITERATIONS = 500
 MAX_SAMPLE_OPTIMIZE = 20000
 
@@ -66,6 +68,90 @@ GM_PARAMS_OPTIMIZATOR = ParamsOptimizator(
         )
     ]
 )
+
+
+def get_distances_from_cmd(
+    cluster_data: pd.DataFrame,
+    df_stars: pd.DataFrame,
+    exclude_index: bool = False,
+    cmd_columns: list[str] = CMD_COLUMNS,
+) -> np.ndarray:
+    """
+    Función que mide la distancia de df_stars del CMD del cluster_data, donde el CMD se
+    utiliza las columnas cmd_columns.
+
+    Parameters
+    ----------
+    cluster_data: pd.DataFrame,
+        Datos del cluster usados para calcular la distancia.
+    df_stars: pd.DataFrame,
+        Estrellas que se quieren medir la distancia al CMD.
+    exclude_index: bool = False
+        Indica si se quiere obviar el indes de l aestrella en la medición. Esto es útil
+        cuando df_stars y cluster data es el mismo y no queremos medir la distancia de
+        una estrella a si misma.
+    cmd_columns: list[str] =CMD_COLUMNS
+        Columnas usadas en el CMD.
+
+    Returns
+    -------
+    distances: np.ndarray
+        Distancias medidas al CMD de cluster_data.
+    """
+    cluster_cmd = cluster_data[cmd_columns]
+    distances = np.zeros(df_stars.shape[0])
+    if exclude_index:
+        for pos in range(df_stars.shape[0]):
+            star = df_stars.iloc[pos]
+            cmd_point = star[cmd_columns]
+            star_distances = ((cmd_point.values - cluster_cmd.values) ** 2).sum(axis=1) ** (1 / 2)
+            star_distances = np.delete(star_distances, pos)
+            distances[pos] = np.min(star_distances)
+        return distances
+
+    for pos in range(df_stars.shape[0]):
+        star = df_stars.iloc[pos]
+        cmd_point = star[cmd_columns]
+        star_distances = ((cmd_point.values - cluster_cmd.values) ** 2).sum(axis=1) ** (1 / 2)
+        distances[pos] = np.min(star_distances)
+    return distances
+
+
+def filter_cmd_data(
+    cluster_data: pd.DataFrame,
+    df_stars: pd.DataFrame,
+    threshold: float | None = None,
+    cmd_columns: list[str] = CMD_COLUMNS,
+) -> pd.DataFrame:
+    """
+    Función que filtra los elementos que se encuentren más alejados del CMD de cluster_data.
+    Usa el thershold indicado, si no se le indica usa la media de la distancia entre los elementos
+    del CMD del cluster.
+
+    Parameters
+    ----------
+    cluster_data: pd.DataFrame,
+        Datos del cluster usados para calcular la distancia.
+    df_stars: pd.DataFrame,
+        Estrellas que se quieren filtrar.
+    threshold: float | None = None
+        Umbral usado para filtrar. Si no se le pasa se calcula lla distancia media entre
+        los elementos del cluster data.
+    cmd_columns: list[str] =CMD_COLUMNS
+        Columnas usadas en el CMD.
+
+    Returns
+    -------
+    df_stars: pd.DataFrame
+        Estrellas filtradas.
+    """
+    distances = get_distances_from_cmd(cluster_data, df_stars, False, cmd_columns)
+
+    if not threshold:
+        gc_distances = get_distances_from_cmd(cluster_data, cluster_data, True, cmd_columns)
+        threshold = gc_distances.max()
+
+    return df_stars[distances < threshold]
 
 
 @attrs
@@ -428,7 +514,11 @@ class AstroObjectProject:
         return self.clustering_results
 
     def plot_cluster(
-        self, hvs_candidates_name: str, index_hvs_candidates: Optional[int] = None, **kwargs
+        self,
+        hvs_candidates_name: str,
+        index_hvs_candidates: Optional[int] = None,
+        random_state: int | None = None,
+        **kwargs,
     ) -> tuple[plt.Figure, plt.Axes]:
         """
         Función que representa el cluster con las candidatas HVS en coordenadas galacticas
@@ -453,7 +543,7 @@ class AstroObjectProject:
         """
         df_hvs_candidates = self.get_data(hvs_candidates_name, index_hvs_candidates)
 
-        df_gc = self.clustering_results.gc
+        df_gc = self.clustering_results.remove_outliers_gc(random_state=random_state)
         df_source_x = self.xsource.results
         df_source_x = df_source_x[df_source_x.main_id == self.astro_object.main_id]
         fig, ax = cluster_representation_with_hvs(
@@ -461,12 +551,14 @@ class AstroObjectProject:
         )
         hvs_pm = kwargs.get("hvs_pm")
         ax.set_title(f"Cluster {hvs_candidates_name} hvs > {hvs_pm} km/s")
-        factor_sigma = kwargs.get("factor_sigma", 1.0)
-        filename = f"cluster_{hvs_candidates_name}_hvs_{hvs_pm}_sigma_{factor_sigma:.0f}"
-        StorageObjectFigures.save(
-            path=os.path.join(self.path_project, filename),
-            value=fig,
-        )
+
+        if fig is not None:
+            factor_sigma = kwargs.get("factor_sigma", 1.0)
+            filename = f"cluster_{hvs_candidates_name}_hvs_{hvs_pm}_sigma_{factor_sigma:.0f}"
+            StorageObjectFigures.save(
+                path=os.path.join(self.path_project, filename),
+                value=fig,
+            )
         return fig, ax
 
     def plot_cmd(
@@ -476,6 +568,8 @@ class AstroObjectProject:
         factor_sigma: float = 1.0,
         hvs_pm: float = 150,
         legend: bool = True,
+        random_state: int | None = None,
+        filter_selected_cmd: bool = False,
         **kwargs,
     ) -> tuple[plt.Figure, plt.Axes]:
         """
@@ -513,7 +607,15 @@ class AstroObjectProject:
         """
         df_hvs_candidates = self.get_data(hvs_candidates_name, index_hvs_candidates)
 
-        selected = self.clustering_results.selected_hvs(df_hvs_candidates, factor_sigma, hvs_pm)
+        selected = self.clustering_results.selected_hvs(
+            df_hvs_candidates, factor_sigma, hvs_pm, random_state=random_state
+        )
+
+        if filter_selected_cmd:
+            selected = filter_cmd_data(
+                cluster_data=self.clustering_results.remove_outliers_gc(random_state),
+                df_stars=selected,
+            )
 
         if isinstance(self.clustering_results, ClusteringResults):
             fig, ax = cmd_with_cluster(
@@ -534,8 +636,11 @@ class AstroObjectProject:
             if legend:
                 plt.legend()
             ax.set_title(f"CMD with {hvs_candidates_name} hvs > {hvs_pm} km/s")
-            filename = f"cmd_hvs_{hvs_pm}_sigma_{factor_sigma:.0f}"
-            StorageObjectFigures.save(path=os.path.join(self.path_project, filename), value=fig)
+            if fig is not None:
+                filename = f"cmd_hvs_{hvs_pm}_sigma_{factor_sigma:.0f}"
+                StorageObjectFigures.save(
+                    path=os.path.join(self.path_project, filename), value=fig
+                )
             return fig, ax
         raise RuntimeError("Genera un clustering antes de ejecutar este método.")
 

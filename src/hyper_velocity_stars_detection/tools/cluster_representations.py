@@ -106,6 +106,7 @@ def cmd_plot(
     magnitud_field: str = "phot_g_mean_mag",
     isochrone_distance_module: float = 0,
     isochrone_redding: float = 0,
+    ax: Optional[plt.Axes] = None,
 ) -> tuple[plt.Axes, plt.Figure]:
     """
     Función que genera la gráfica del Color Magnitud Diagram. S
@@ -132,8 +133,9 @@ def cmd_plot(
         Figura con el CMD.
     """
 
-    # Crear la figura y los ejes
-    fig, ax = plt.subplots(figsize=(15, 6))
+    fig = None
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(15, 6))
     # Crear el scatter plot
     plt.scatter(
         x=df_catalog[color_field],
@@ -172,6 +174,7 @@ def cmd_with_cluster(
     isochrone_distance_module: float = 0,
     isochrone_redding: float = 0,
     clusters: Optional[int | list[int]] = None,
+    ax: Optional[plt.Axes] = None,
 ) -> tuple[plt.Figure, plt.Axes]:
     """
     Función que genera la gráfica del Color Magnitud Diagram. S
@@ -199,10 +202,10 @@ def cmd_with_cluster(
     ax: Axes
         Eje de la gráfica.
     """
-    # Crear la figura y los ejes
-    fig, ax = plt.subplots(figsize=(15, 6))
-    # Crear el scatter plot
-    plt.scatter(
+    fig = None
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(15, 6))
+    ax.scatter(
         x=df_catalog[color_field],
         y=df_catalog[magnitud_field],
         s=10,
@@ -218,7 +221,7 @@ def cmd_with_cluster(
 
     for label in clusters:
         mask_i = labels == label
-        plt.scatter(
+        ax.scatter(
             x=df_catalog.loc[mask_i, color_field],
             y=df_catalog.loc[mask_i, magnitud_field],
             s=10,
@@ -231,7 +234,7 @@ def cmd_with_cluster(
         df_is_fit = fit_isochrone(
             df_isochrone, isochrone_distance_module, isochrone_redding, color_field, magnitud_field
         )
-        plt.scatter(
+        ax.scatter(
             x=df_is_fit[color_field],
             y=df_is_fit[magnitud_field],
             s=10,
@@ -243,7 +246,7 @@ def cmd_with_cluster(
     # Etiquetas de los ejes
     ax.set_xlabel(color_field)
     ax.set_ylabel(magnitud_field)
-    plt.gca().invert_yaxis()
+    ax.invert_yaxis()
     return fig, ax
 
 
@@ -377,6 +380,7 @@ def cluster_representation_with_hvs(
     df_source_x: Optional[pd.DataFrame] = None,
     legend: bool = True,
     parallax_corrected: bool = True,
+    ax: Optional[plt.Axes] = None,
 ) -> tuple[plt.Figure, plt.Axes]:
     """
     Función que representa el cluster con las candidatas HVS en coordenadas galacticas
@@ -417,7 +421,9 @@ def cluster_representation_with_hvs(
 
     pm_candidates = df_hvs_candidates.pm_kms - df_gc.pm_kms.mean()
     mask_hvs = (pm_candidates > hvs_pm) & mask_p
-    fig, ax = plt.subplots(figsize=(8, 5))
+    fig = None
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(8, 5))
 
     selected = df_hvs_candidates[mask_hvs]
 

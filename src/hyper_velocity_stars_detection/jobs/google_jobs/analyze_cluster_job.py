@@ -220,11 +220,13 @@ if __name__ == "__main__":
                 df_hvs_candidates=project.get_data("df_6_c1"),
                 factor_sigma=1.0,
                 hvs_pm=150,
+                random_state=123,
             )
             hvs_2 = project.clustering_results.selected_hvs(
                 df_hvs_candidates=project.get_data("df_6_c1"),
                 factor_sigma=2.0,
                 hvs_pm=150,
+                random_state=123,
             )
             hvs_distance = get_distance_from_center(project.astro_object, hvs)
             hvs_distance_2 = get_distance_from_center(project.astro_object, hvs_2)
@@ -273,6 +275,7 @@ if __name__ == "__main__":
                 hvs_pm=150,
                 legend=True,
                 clusters=project.clustering_results.main_label,
+                random_state=123,
             )
 
             _ = project.plot_cluster(
@@ -281,6 +284,7 @@ if __name__ == "__main__":
                 hvs_pm=150,
                 legend=True,
                 factor_size=50,
+                random_state=123,
             )
             _ = project.plot_cmd(
                 hvs_candidates_name="df_6_c1",
@@ -288,6 +292,7 @@ if __name__ == "__main__":
                 hvs_pm=150,
                 legend=True,
                 clusters=project.clustering_results.main_label,
+                random_state=123,
             )
 
             _ = project.plot_cluster(
@@ -296,6 +301,7 @@ if __name__ == "__main__":
                 hvs_pm=150,
                 legend=True,
                 factor_size=50,
+                random_state=123,
             )
             files = [
                 "cluster_df_6_c1_hvs_150_sigma_1.png",
