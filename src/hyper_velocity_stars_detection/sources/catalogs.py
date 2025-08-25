@@ -64,7 +64,12 @@ class Catalog(ABC):
         """
         try:
             self._download_data(
-                ra=ra, dec=dec, radius=radius, row_limit=row_limit, **filter_params
+                ra=ra,
+                dec=dec,
+                radius=radius,
+                row_limit=row_limit,
+                output_file=output_file,
+                **filter_params,
             )
         except NotImplementedError:
             raise NotImplementedError(
