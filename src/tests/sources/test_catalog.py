@@ -5,7 +5,7 @@ import pytest
 from astropy.table.table import Table
 from attr import attrs
 
-from hyper_velocity_stars_detection.sources.catalogs import GaiaDR2, GaiaDR3, GaiaFPR
+from hyper_velocity_stars_detection.sources.catalogs import GaiaDR2, GaiaDR3, GaiaFPR, get_catalog
 
 
 @attrs(auto_attribs=True)
@@ -42,3 +42,14 @@ def test_catalog_read(storage_class_mock, catalog, cluster):
     df_result = catalog.read_catalog("data_file.vot")
     assert isinstance(df_result, pd.DataFrame)
     assert df_result.shape[0] == 50
+
+
+@pytest.mark.parametrize("catalog", [GaiaDR2, GaiaDR3, GaiaFPR])
+def test_get_catalog(catalog):
+    result = get_catalog(catalog.catalog_name)
+    assert isinstance(result, catalog)
+
+
+def test_get_catalog_error():
+    with pytest.raises(ValueError):
+        get_catalog("error_catalog_name")

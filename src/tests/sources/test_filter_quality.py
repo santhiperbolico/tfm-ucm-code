@@ -48,3 +48,11 @@ def test_query_processor():
                    """
     assert query_processor._fields == expected_fields
     assert query_processor.get_query("tab") == " ".join(expected_query.split())
+
+
+def test_query_processor_get_value():
+    field_filters = {"ra": 0, "dec": 0, "radius": 1, "ast_params_solved": 3, "v_periods_used": 11}
+    query_processor = QueryProcessor(GAIA_DR3_FIELDS, field_filters)
+    expected_field = GAIA_DR3_FIELDS[0]
+    assert query_processor.get_field_value("v_periods_used") == 11
+    assert query_processor.get_field(expected_field.param_name) == expected_field

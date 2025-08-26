@@ -274,3 +274,28 @@ class GaiaFPR(Catalog):
         df_data = results.to_pandas()
 
         return df_data
+
+
+def get_catalog(catalog_name: str) -> Catalog:
+    """
+    Método que devuelve el catálogo correspondiente.
+
+    Parameters
+    ----------
+    catalog_name: str
+        Nombre del catálogo
+
+    Returns
+    -------
+    catalog: Catalog
+        Catalogo correspondiente.
+    """
+    dic_catalog = {
+        GaiaDR2.catalog_name: GaiaDR2,
+        GaiaDR3.catalog_name: GaiaDR3,
+        GaiaFPR.catalog_name: GaiaFPR,
+    }
+    try:
+        return dic_catalog[catalog_name]()
+    except KeyError:
+        raise ValueError("El catalogo %s no está implementado." % catalog_name)
