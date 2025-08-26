@@ -1,9 +1,11 @@
 import logging
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 from astroquery.gaia import Gaia
+from zero_point import zpt
 
 from hyper_velocity_stars_detection.data_storage import StorageObjectTableVotable
 from hyper_velocity_stars_detection.sources.filter_quality import (
@@ -65,7 +67,6 @@ class Catalog(ABC):
                 "No se ha implementado la descarga en el catálogo %s" % self.catalog_name
             )
 
-    @abstractmethod
     def _download_data(
         self,
         ra: float,
@@ -79,6 +80,33 @@ class Catalog(ABC):
         Método oculto asociado a download_data.
         """
         raise NotImplementedError()
+
+    def fix_parallax_zero_point(self, df_data: pd.DataFrame, **kwargs) -> pd.Series:
+        """
+        Método que corrige el sesgo del paralaje de los datos del objeto calculando el punto zero
+        del paralaje corregido
+
+        Parameters
+        ----------
+        df_data: pd.DataFrame
+            Datos donde queremos calcular el paralaje corregido.
+
+        Returns
+        -------
+        parallax_corrected: pd.Series
+            Serie de datos con el paralaje corregido.
+
+        """
+        try:
+            return self._fix_parallax_zero_point(df_data=df_data, **kwargs)
+        except NotImplementedError:
+            raise NotImplementedError(
+                "No se ha implementado la corrección del "
+                "paralaje en el catálogo %s" % self.catalog_name
+            )
+
+    def _fix_parallax_zero_point(self, df_data: pd.DataFrame, **kwargs) -> pd.Series:
+        raise NotImplementedError
 
     @staticmethod
     def read_catalog(file_catalog: str) -> pd.DataFrame:
@@ -152,6 +180,56 @@ class GaiaDR3(Catalog):
 
         results = job.get_results()
         return results.to_pandas()
+
+    def _fix_parallax_zero_point(self, df_data: pd.DataFrame, warnings: bool = True) -> np.ndarray:
+        """
+        Método que corrige el sesgo del paralaje de los datos del objeto calculando
+        el punto zero del paralaje corregido
+        (Lindegren et al., 2021 https://doi.org/10.1051/0004-6361/202039653).
+
+        Parameters
+        ----------
+        df_data: pd.DataFrame
+            Datos donde queremos calcular el paralaje corregido.
+        warnings: bool, default True
+            Indica si se quiere mostrar los warning asociadso a zero_point.get_zpt
+
+        Returns
+        -------
+        parallax_corrected: np.ndarray
+            Array de datos con el paralaje corregido.
+
+        """
+
+        needed_columns = [
+            "parallax",
+            "phot_g_mean_mag",
+            "nu_eff_used_in_astrometry",
+            "nu_eff_used_in_astrometry",
+            "pseudocolour",
+            "ecl_lat",
+            "astrometric_params_solved",
+        ]
+        if not np.isin(needed_columns, df_data.columns).all():
+            raise ValueError("Faltan columnas para implementar la corrección del paralaje.")
+
+        zpt.load_tables()
+        parallax = df_data["parallax"].values
+        phot_g_mean_mag = df_data["phot_g_mean_mag"].values
+        nueffused = df_data["nu_eff_used_in_astrometry"].values
+        pseudocolour = df_data["pseudocolour"].values
+        ecl_lat = df_data["ecl_lat"].values
+        astrometric_params_solved = df_data["astrometric_params_solved"].values
+        zpvals = zpt.get_zpt(
+            phot_g_mean_mag,
+            nueffused,
+            pseudocolour,
+            ecl_lat,
+            astrometric_params_solved,
+            _warnings=warnings,
+        )
+        parallax_corrected = parallax - zpvals
+        return parallax_corrected
 
 
 class GaiaDR2(Catalog):

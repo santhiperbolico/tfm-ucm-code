@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+import numpy as np
 import pandas as pd
 import pytest
 from astropy.table.table import Table
@@ -18,6 +19,11 @@ class GlobularCluster:
 @pytest.fixture
 def cluster():
     return GlobularCluster("ngc 104", 6.02363, -72.08128)
+
+
+@pytest.fixture()
+def df_data():
+    return pd.read_csv("tests/test_data/df_data.csv")
 
 
 @pytest.mark.parametrize("catalog", [GaiaDR2, GaiaDR3, GaiaFPR])
@@ -53,3 +59,33 @@ def test_get_catalog(catalog):
 def test_get_catalog_error():
     with pytest.raises(ValueError):
         get_catalog("error_catalog_name")
+
+
+def test_fix_parallax(df_data):
+    parallax_corrected = GaiaDR3().fix_parallax_zero_point(df_data)
+    assert isinstance(parallax_corrected, np.ndarray)
+    assert (parallax_corrected > df_data.parallax.values).all()
+
+
+@pytest.mark.parametrize("catalog", [GaiaDR2, GaiaFPR])
+def test_fix_parallax_error(catalog, df_data):
+    with pytest.raises(NotImplementedError):
+        catalog().fix_parallax_zero_point(df_data)
+
+
+@pytest.mark.parametrize(
+    "column",
+    [
+        "parallax",
+        "phot_g_mean_mag",
+        "nu_eff_used_in_astrometry",
+        "nu_eff_used_in_astrometry",
+        "pseudocolour",
+        "ecl_lat",
+        "astrometric_params_solved",
+    ],
+)
+def test_fix_parallax_error_gaiadr3(column, df_data):
+    df = df_data.drop(columns=column)
+    with pytest.raises(ValueError):
+        GaiaDR3().fix_parallax_zero_point(df)

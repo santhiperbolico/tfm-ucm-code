@@ -175,6 +175,7 @@ GAIA_DR3_FIELDS = (
     QueryField("ipd_frac_multi_peak", "ipd_frac_multi_peak", FieldType.FILTERS, "gs"),
     QueryField("min_parallax", "parallax", FieldType.FILTERS, "gs"),
     QueryField("max_parallax", "parallax", FieldType.FILTERS, "ls"),
+    QueryField("parallax_error", "parallax_error", FieldType.FILTERS, "ls"),
 )
 
 GAIA_DR2_FIELDS = (
@@ -186,6 +187,7 @@ GAIA_DR2_FIELDS = (
     QueryField("v_periods_used", "visibility_periods_used", FieldType.FILTERS, "gs", 5),
     QueryField("min_parallax", "parallax", FieldType.FILTERS, "gs"),
     QueryField("max_parallax", "parallax", FieldType.FILTERS, "ls"),
+    QueryField("parallax_error", "parallax_error", FieldType.FILTERS, "ls"),
 )
 
 GAIA_FPR_FIELDS = (
@@ -197,4 +199,5 @@ GAIA_FPR_FIELDS = (
     QueryField("ipd_gof_har_amp", "ipd_gof_harmonic_amplitude", FieldType.FILTERS, "gs"),
     QueryField("min_parallax", "parallax", FieldType.FILTERS, "gs"),
     QueryField("max_parallax", "parallax", FieldType.FILTERS, "ls"),
+    QueryField("parallax_error", "parallax_error", FieldType.FILTERS, "ls"),
 )
