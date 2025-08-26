@@ -8,6 +8,7 @@ from attr import attrs
 class FieldType(Enum):
     POSITION = 0
     FILTERS = 1
+    OTHERS = 2
 
 
 class SEARCH_TYPES:
@@ -48,7 +49,7 @@ class QueryField(ABC):
 
 RA_FIELD = QueryField("ra", "ra", FieldType.POSITION, "eq")
 DEC_FIELD = QueryField("dec", "dec", FieldType.POSITION, "eq")
-RADIUS_FIELD = QueryField("ra", "ra", FieldType.POSITION, "eq")
+RADIUS_FIELD = QueryField("radius", "radius", FieldType.POSITION, "eq")
 
 
 class QueryProcessor:
@@ -95,13 +96,13 @@ class QueryProcessor:
 
         for field in self._fields_to_process:
             if field.type == FieldType.FILTERS:
-                value_field = self._fields.get(field.field_name)
+                value_field = self._fields.get(field.param_name)
                 if value_field is not None:
                     expression = field.get_expression_field(value_field)
                     filter = filter + f" AND {expression}"
 
         query = f"SELECT {catalog_table}.* FROM {catalog_table} {filter}"
-        return query
+        return " ".join(query.split())
 
     def _get_position_filter(self, search_type: SEARCH_TYPES) -> str:
         """
@@ -135,11 +136,32 @@ class QueryProcessor:
         dict[str, Any]
             Campos con valores por defecto definido.
         """
-        return {
-            field.param_name: field.default_value
-            for field in self._fields_to_process
-            if field.default_value is not None
-        }
+        return {field.param_name: field.default_value for field in self._fields_to_process}
+
+    def get_field_value(self, field_name) -> Any:
+        """
+        Devuelve el valor del campo seleccionado.
+
+        Returns
+        -------
+        Any
+            Valor asociado al campo
+        """
+        return self._fields.get(field_name)
+
+    def get_field(self, field_name) -> QueryField:
+        """
+        Devuelve el valor del campo seleccionado.
+
+        Returns
+        -------
+        QueryField
+            Field asociado
+        """
+        for field in self._fields_to_process:
+            if field.param_name == field_name:
+                return field
+        raise ValueError("No se ha encontrado el parámetro %s ." % field_name)
 
 
 GAIA_DR3_FIELDS = (
@@ -149,8 +171,30 @@ GAIA_DR3_FIELDS = (
     QueryField("ast_params_solved", "astrometric_params_solved", FieldType.FILTERS, "gs", 3),
     QueryField("ruwe", "ruwe", FieldType.FILTERS, "ls", 1.4),
     QueryField("v_periods_used", "visibility_periods_used", FieldType.FILTERS, "gs", 10),
-    QueryField("ipd_gof_har_amp", "ipd_gof_harmonic_amplitude", FieldType.FILTERS, "gs", None),
-    QueryField("ipd_frac_multi_peak", "ipd_frac_multi_peak", FieldType.FILTERS, "gs", None),
+    QueryField("ipd_gof_har_amp", "ipd_gof_harmonic_amplitude", FieldType.FILTERS, "gs"),
+    QueryField("ipd_frac_multi_peak", "ipd_frac_multi_peak", FieldType.FILTERS, "gs"),
+    QueryField("min_parallax", "parallax", FieldType.FILTERS, "gs"),
+    QueryField("max_parallax", "parallax", FieldType.FILTERS, "ls"),
+)
+
+GAIA_DR2_FIELDS = (
+    RA_FIELD,
+    DEC_FIELD,
+    RADIUS_FIELD,
+    QueryField("ast_params_solved", "astrometric_params_solved", FieldType.FILTERS, "gs", 3),
+    QueryField("ruwe", "ruwe", FieldType.OTHERS, "gs", 1.4),
+    QueryField("v_periods_used", "visibility_periods_used", FieldType.FILTERS, "gs", 5),
+    QueryField("min_parallax", "parallax", FieldType.FILTERS, "gs"),
+    QueryField("max_parallax", "parallax", FieldType.FILTERS, "ls"),
+)
+
+GAIA_FPR_FIELDS = (
+    RA_FIELD,
+    DEC_FIELD,
+    RADIUS_FIELD,
+    QueryField("ast_params_solved", "astrometric_params_solved", FieldType.FILTERS, "gs", 3),
+    QueryField("v_periods_used", "visibility_periods_used", FieldType.FILTERS, "gs", 10),
+    QueryField("ipd_gof_har_amp", "ipd_gof_harmonic_amplitude", FieldType.FILTERS, "gs"),
     QueryField("min_parallax", "parallax", FieldType.FILTERS, "gs"),
     QueryField("max_parallax", "parallax", FieldType.FILTERS, "ls"),
 )
