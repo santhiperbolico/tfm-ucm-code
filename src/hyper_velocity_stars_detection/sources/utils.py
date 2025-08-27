@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 import astropy.units as u
 import numpy as np
@@ -230,3 +231,35 @@ def fix_parallax(df_data: pd.DataFrame, warnings: bool = True) -> pd.DataFrame:
     )
     df_data["parallax_corrected"] = parallax - zpvals
     return df_data
+
+
+def get_radio(coords: Table, radio_scale: float, radius_type: Optional[str] = None) -> float:
+    """
+    Función que devulve el radio asociado a la búsqueda
+    Parameters
+    ----------
+    radio_scale
+    radius_type
+    coords
+
+    Returns
+    -------
+
+    """
+    radius = None
+    if radius_type is None:
+        radius_type = "vision_fold_radius"
+
+    if radius_type == "vision_fold_radius":
+        radius = radio_scale * coords["ANGULAR_SIZE"][0] / 60
+    if radius_type == "core_radius":
+        radius = radio_scale * coords["CORE_RADIUS"][0]
+    if radius_type == "half_light_radius":
+        radius = radio_scale * coords["HALF_LIGHT_RADIUS"][0]
+
+    if radius is None:
+        raise ValueError(
+            'El tipo de radio no es correcto, pruebe con "core_radius", '
+            '"half_light_radius" o "vision_fold_radius"'
+        )
+    return radius
