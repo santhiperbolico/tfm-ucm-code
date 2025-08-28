@@ -9,7 +9,7 @@ from attr import attrs
 from pandas.testing import assert_frame_equal
 
 from hyper_velocity_stars_detection.sources.catalogs import GaiaDR3
-from hyper_velocity_stars_detection.sources.source import AstroObject, AstroObjectData
+from hyper_velocity_stars_detection.sources.source import AstroMetricData, AstroObject
 
 
 @attrs(auto_attribs=True)
@@ -56,9 +56,7 @@ def test_astroobject_load_save_object(astro_object):
 @patch("hyper_velocity_stars_detection.sources.catalogs.GaiaDR3._download_data", autospec=True)
 def test_astroobject_data_load_astro_data(gaia_download_data_mock, astro_object):
     gaia_download_data_mock.return_value = pd.read_csv("tests/test_data/df_data.csv")
-    astro_data = AstroObjectData.load_astro_data(
-        astro_object.name, GaiaDR3.catalog_name, radius_scale=1
-    )
+    astro_data = AstroMetricData.load_data(astro_object.name, GaiaDR3.catalog_name, radius_scale=1)
     columns = ["pmra_kms", "pmdec_kms", "pm_kms", "pm", "pm_l", "pm_b", "ruwe", "parallax_orig"]
     assert isinstance(astro_data.data, pd.DataFrame)
     assert astro_data.data.columns.isin(columns).sum() == len(columns)
@@ -67,14 +65,12 @@ def test_astroobject_data_load_astro_data(gaia_download_data_mock, astro_object)
 @patch("hyper_velocity_stars_detection.sources.catalogs.GaiaDR3._download_data", autospec=True)
 def test_astroobject_data_save_load_from_zip(gaia_download_data_mock, astro_object):
     gaia_download_data_mock.return_value = pd.read_csv("tests/test_data/df_data.csv")
-    astro_data = AstroObjectData.load_astro_data(
-        astro_object.name, GaiaDR3.catalog_name, radius_scale=1
-    )
+    astro_data = AstroMetricData.load_data(astro_object.name, GaiaDR3.catalog_name, radius_scale=1)
     with TemporaryDirectory() as tmp_dir:
         filename = "astro_data_" + astro_data.data_name
         file = os.path.join(tmp_dir, filename)
         astro_data.save(tmp_dir)
-        new_data = AstroObjectData.load(file)
+        new_data = AstroMetricData.load(file)
 
     assert_frame_equal(astro_data.data, new_data.data)
     assert new_data.data_name == astro_data.data_name
@@ -82,7 +78,7 @@ def test_astroobject_data_save_load_from_zip(gaia_download_data_mock, astro_obje
 
 def test_astroobject_data_fix_parallax(astro_object):
     data = pd.read_csv("tests/test_data/df_data.csv")
-    astro_data = AstroObjectData(astro_object, GaiaDR3(), radio_scale=1.0, data=data.copy())
+    astro_data = AstroMetricData(astro_object, GaiaDR3(), radio_scale=1.0, data=data.copy())
     assert_frame_equal(astro_data.data, data)
     astro_data.fix_parallax()
     assert (astro_data.data.parallax > astro_data.data.parallax_orig).all()
@@ -90,7 +86,7 @@ def test_astroobject_data_fix_parallax(astro_object):
 
 def test_astroobject_data_calculate_pm_kms(astro_object):
     data = pd.read_csv("tests/test_data/df_data.csv")
-    astro_data = AstroObjectData(astro_object, GaiaDR3(), radio_scale=1.0, data=data.copy())
+    astro_data = AstroMetricData(astro_object, GaiaDR3(), radio_scale=1.0, data=data.copy())
     assert_frame_equal(astro_data.data, data)
     astro_data.calculate_pm_to_kms()
 
@@ -109,7 +105,7 @@ def test_astroobject_data_calculate_pm_kms(astro_object):
 )
 def test_astroobject_data_get_data(sample_type, n_rows, astro_object):
     data = pd.read_csv("tests/test_data/df_data.csv")
-    astro_data = AstroObjectData(astro_object, GaiaDR3(), radio_scale=1.0, data=data.copy())
+    astro_data = AstroMetricData(astro_object, GaiaDR3(), radio_scale=1.0, data=data.copy())
 
     df_c = astro_data.get_data(sample_type)
     assert df_c.shape[0] == n_rows
@@ -117,7 +113,7 @@ def test_astroobject_data_get_data(sample_type, n_rows, astro_object):
 
 def test_astroobject_data_get_data_error(astro_object):
     data = pd.read_csv("tests/test_data/df_data.csv")
-    astro_data = AstroObjectData(astro_object, GaiaDR3(), radio_scale=1.0, data=data.copy())
+    astro_data = AstroMetricData(astro_object, GaiaDR3(), radio_scale=1.0, data=data.copy())
 
     with pytest.raises(ValueError):
         astro_data.get_data("df_data")

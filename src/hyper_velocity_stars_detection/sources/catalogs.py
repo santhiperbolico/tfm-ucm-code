@@ -1,10 +1,13 @@
 import logging
-from abc import ABC
+from abc import ABC, abstractmethod
 from typing import Optional
 
+import astropy.units as u
 import numpy as np
 import pandas as pd
+from astropy.coordinates import SkyCoord
 from astroquery.gaia import Gaia
+from astroquery.heasarc import Heasarc
 from zero_point import zpt
 
 from hyper_velocity_stars_detection.data_storage import StorageObjectTableVotable
@@ -15,9 +18,50 @@ from hyper_velocity_stars_detection.sources.filter_quality import (
     QueryProcessor,
 )
 from hyper_velocity_stars_detection.sources.ruwe_tools.dr2.ruwetools import U0Interpolator
+from hyper_velocity_stars_detection.sources.utils import get_main_id
 
 
 class Catalog(ABC):
+    catalog_name = "catalog_name"
+    catalog_table = "table_name"
+
+    @abstractmethod
+    def download_data(
+        self,
+        ra: float,
+        dec: float,
+        radius: float,
+        row_limit: int = -1,
+        output_file: Optional[str] = None,
+        **filter_params,
+    ) -> Optional[pd.DataFrame]:
+        """
+        Método que descarga los datos del catalogo asociado teniendo en cuenta los parámetros.
+
+        Parameters
+        ----------
+        ra: float
+            Ascensión recta en deg.
+        dec: float
+            Declinaje en deg
+        radius: float
+            Radio de búsqueda en grados.
+        output_file: Optional[str] = None,
+            Nombre del archivo donde se quiere guardar los resultados, si se quiere.
+        row_limit: int, default -1
+            Límite de filas consultadas. Por defecto se extraen todas las filas.
+        **filter_params
+            Filtros aplicados a la descarga de datos.
+
+        Returns
+        -------
+        results: pd.DataFrame
+            Tabla con los datos del catálogo descargados.
+        """
+        raise NotImplementedError()
+
+
+class GaiaCatalog(Catalog):
     catalog_name = "catalog_name"
     catalog_table = "table_name"
 
@@ -36,9 +80,9 @@ class Catalog(ABC):
         Parameters
         ----------
         ra: float
-            Ascensión recta en mas.
+            Ascensión recta en deg.
         dec: float
-            Declinaje en mas
+            Declinaje en deg
         radius: float
             Radio de búsqueda en grados.
         output_file: Optional[str] = None,
@@ -128,7 +172,7 @@ class Catalog(ABC):
         return results
 
 
-class GaiaDR3(Catalog):
+class GaiaDR3(GaiaCatalog):
     catalog_name = "gaiadr3"
     catalog_table = "gaiadr3.gaia_source"
 
@@ -147,9 +191,9 @@ class GaiaDR3(Catalog):
         Parameters
         ----------
         ra: float
-           Ascensión recta en mas.
+           Ascensión recta en deg.
         dec: float
-           Declinaje en mas
+           Declinaje en deg
         radius: float
            Radio de búsqueda en grados.
         row_limit: int, default -1
@@ -232,7 +276,7 @@ class GaiaDR3(Catalog):
         return parallax_corrected
 
 
-class GaiaDR2(Catalog):
+class GaiaDR2(GaiaCatalog):
     catalog_name = "gaiadr2"
     catalog_table = "gaiadr2.gaia_source"
 
@@ -251,9 +295,9 @@ class GaiaDR2(Catalog):
         Parameters
         ----------
         ra: float
-           Ascensión recta en mas.
+           Ascensión recta en deg.
         dec: float
-           Declinaje en mas
+           Declinaje en deg
         radius: float
            Radio de búsqueda en grados.
         row_limit: int, default -1
@@ -298,7 +342,7 @@ class GaiaDR2(Catalog):
         return df_data
 
 
-class GaiaFPR(Catalog):
+class GaiaFPR(GaiaCatalog):
     catalog_name = "gaiafpr"
     catalog_table = "gaiafpr.crowded_field_source"
 
@@ -317,9 +361,9 @@ class GaiaFPR(Catalog):
         Parameters
         ----------
         ra: float
-           Ascensión recta en mas.
+           Ascensión recta en deg.
         dec: float
-           Declinaje en mas
+           Declinaje en deg
         radius: float
            Radio de búsqueda en grados.
         row_limit: int, default -1
@@ -354,6 +398,121 @@ class GaiaFPR(Catalog):
         return df_data
 
 
+class XRSCatalog(Catalog):
+    catalog_table = "mission_name"
+    searched_columns = []
+
+    format_columns = {
+        "obsid": "str",
+        "name": "str",
+        "ra": "float",
+        "dec": "float",
+        "lii": "float",
+        "bii": "float",
+        "time": "float",
+        "exposure": "float",
+        "public_date": "float",
+        "class": "str",
+    }
+
+    def download_data(
+        self,
+        ra: float,
+        dec: float,
+        radius: float,
+        row_limit: int = -1,
+        output_file: Optional[str] = None,
+        **filter_params,
+    ) -> Optional[pd.DataFrame]:
+        """
+        Método que descarga los datos del catalogo asociado teniendo en cuenta los parámetros.
+
+        Parameters
+        ----------
+        ra: float
+            Ascensión recta en deg.
+        dec: float
+            Declinaje en deg
+        radius: float
+            Radio de búsqueda en grados.
+        output_file: Optional[str] = None,
+            Nombre del archivo donde se quiere guardar los resultados, si se quiere.
+        row_limit: int, default -1
+            Límite de filas consultadas. Por defecto se extraen todas las filas.
+        **filter_params
+            Filtros aplicados a la descarga de datos.
+
+        Returns
+        -------
+        results: pd.DataFrame
+            Tabla con los datos del catálogo descargados.
+        """
+        coords = SkyCoord(ra, dec, unit=(u.deg, u.deg), frame="icrs")
+        query_res = Heasarc.query_region(
+            coords,
+            mission=self.catalog_table,
+            radius=radius * u.deg,
+            fields=", ".join(self.searched_columns),
+        )
+        results = query_res.to_pandas()
+        object_cols = results.select_dtypes([object]).columns
+        results[object_cols] = results[object_cols].astype(str)
+
+        results = results.rename(
+            columns=dict(zip(self.searched_columns, list(self.format_columns.keys())))
+        )
+        if results.empty:
+            results = pd.DataFrame(columns=list(self.format_columns.keys()))
+
+        for column, col_type in self.format_columns.items():
+            if results[column].dtype == np.dtype("O"):
+                results[column] = results[column].astype("str").str.strip()
+                results.loc[results[column] == "", column] = None
+
+            results[column] = results[column].astype(col_type)
+
+        results.insert(0, "mission", self.catalog_table)
+        results.insert(1, "main_id", results.name.apply(get_main_id))
+        if output_file:
+            results.to_csv(output_file)
+
+        return results
+
+
+class XMMNewton(XRSCatalog):
+    catalog_name = "xmmnewton"
+    catalog_table = "xmmmaster"
+    searched_columns = [
+        "OBSID",
+        "NAME",
+        "RA",
+        "DEC",
+        "LII",
+        "BII",
+        "TIME",
+        "ESTIMATED_EXPOSURE",
+        "PUBLIC_DATE",
+        "CLASS",
+    ]
+
+
+class Chandra(XRSCatalog):
+    catalog_name = "chandra"
+    catalog_table = "chanmaster"
+    searched_columns = [
+        "OBSID",
+        "NAME",
+        "RA",
+        "DEC",
+        "LII",
+        "BII",
+        "TIME",
+        "EXPOSURE",
+        "PUBLIC_DATE",
+        "CLASS",
+    ]
+
+
 def get_catalog(catalog_name: str) -> Catalog:
     """
     Método que devuelve el catálogo correspondiente.
@@ -372,6 +531,8 @@ def get_catalog(catalog_name: str) -> Catalog:
         GaiaDR2.catalog_name: GaiaDR2,
         GaiaDR3.catalog_name: GaiaDR3,
         GaiaFPR.catalog_name: GaiaFPR,
+        XMMNewton.catalog_name: XMMNewton,
+        Chandra.catalog_name: Chandra,
     }
     try:
         return dic_catalog[catalog_name]()

@@ -6,7 +6,14 @@ import pytest
 from astropy.table.table import Table
 from attr import attrs
 
-from hyper_velocity_stars_detection.sources.catalogs import GaiaDR2, GaiaDR3, GaiaFPR, get_catalog
+from hyper_velocity_stars_detection.sources.catalogs import (
+    Chandra,
+    GaiaDR2,
+    GaiaDR3,
+    GaiaFPR,
+    XMMNewton,
+    get_catalog,
+)
 
 
 @attrs(auto_attribs=True)
@@ -50,7 +57,7 @@ def test_catalog_read(storage_class_mock, catalog, cluster):
     assert df_result.shape[0] == 50
 
 
-@pytest.mark.parametrize("catalog", [GaiaDR2, GaiaDR3, GaiaFPR])
+@pytest.mark.parametrize("catalog", [GaiaDR2, GaiaDR3, GaiaFPR, XMMNewton, Chandra])
 def test_get_catalog(catalog):
     result = get_catalog(catalog.catalog_name)
     assert isinstance(result, catalog)
@@ -89,3 +96,21 @@ def test_fix_parallax_error_gaiadr3(column, df_data):
     df = df_data.drop(columns=column)
     with pytest.raises(ValueError):
         GaiaDR3().fix_parallax_zero_point(df)
+
+
+@pytest.mark.parametrize(
+    "catalog_name, expected_shape",
+    [
+        (XMMNewton.catalog_name, (1, 13)),
+        (Chandra.catalog_name, (36, 13)),
+    ],
+)
+@patch("hyper_velocity_stars_detection.sources.catalogs.Heasarc", autospec=True)
+def test_xcatalog_download_data(heasarc_class_mock, catalog_name, expected_shape, cluster):
+    heasarc_class_mock.query_region.return_value = Table.read(
+        f"tests/test_data/{catalog_name}_heasarc.fits"
+    )
+    catalog = get_catalog(catalog_name)
+    result = catalog.download_data(ra=cluster.ra, dec=cluster.dec, radius=1)
+    assert isinstance(result, pd.DataFrame)
+    assert result.shape == expected_shape

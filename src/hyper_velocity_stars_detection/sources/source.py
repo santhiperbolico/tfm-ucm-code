@@ -16,7 +16,7 @@ from hyper_velocity_stars_detection.data_storage import (
     StorageObjectPickle,
     StorageObjectTableVotable,
 )
-from hyper_velocity_stars_detection.sources.catalogs import Catalog, get_catalog
+from hyper_velocity_stars_detection.sources.catalogs import GaiaCatalog, get_catalog
 from hyper_velocity_stars_detection.sources.metrics import (
     convert_mas_yr_in_km_s,
     get_l_b_velocities,
@@ -202,14 +202,14 @@ class AstroObject:
 
 
 @attrs
-class AstroObjectData:
+class AstroMetricData:
     """
     Clase que recoge cuatro muestras de datos de una misma consulta de datos de un objeto
     astronómico.
     """
 
     astro_object = attrib(type=AstroObject, init=True)
-    catalog = attrib(type=Catalog, init=True)
+    catalog = attrib(type=GaiaCatalog, init=True)
     radio_scale = attrib(type=float, init=True)
     data = attrib(type=pd.DataFrame, init=True, default=pd.DataFrame())
 
@@ -245,14 +245,14 @@ class AstroObjectData:
         )
 
     @classmethod
-    def load_astro_data(
+    def load_data(
         cls,
         name: str,
         catalog_name: str,
         radius: Optional[float] = None,
         radius_scale: float = 1.0,
         **filter_params,
-    ) -> "AstroObjectData":
+    ) -> "AstroMetricData":
         """
         Método que genera el objeto astro data con lso datos filtrados del objeto astronómico
         a estudiar, descargando los datos correspondientes a la escala del radio de
@@ -273,7 +273,7 @@ class AstroObjectData:
 
         Returns
         -------
-        object_data: AstroObjectData
+        object_data: AstroMetricData
             Clase que recoge las cuatro muestras de la consulta.
         """
         logging.info("-- Cargando objeto astronómico %s" % name)
@@ -296,7 +296,7 @@ class AstroObjectData:
         return astro_data
 
     @classmethod
-    def load(cls, filepath: str) -> "AstroObjectData":
+    def load(cls, filepath: str) -> "AstroMetricData":
         """
         Método de clase que lee los datos desde un archivo zip dado.
 
@@ -309,7 +309,7 @@ class AstroObjectData:
 
         Returns
         -------
-        object_data: AstroObjectData
+        object_data: AstroMetricData
             Datos cargados con las muestras del objeto astronómico
 
         """

@@ -1,212 +1,213 @@
 import logging
 import os
-import shutil
 from typing import Optional
-from zipfile import ZipFile
 
-import astropy.units as u
-import numpy as np
 import pandas as pd
-from astropy.coordinates import SkyCoord
-from astroquery.heasarc import Heasarc
 from astroquery.simbad import Simbad
 from attr import attrib, attrs
 
-from hyper_velocity_stars_detection.data_storage import InvalidFileFormat, StorageObjectPandasCSV
-from hyper_velocity_stars_detection.sources.lightcurves import LightCurve
-from hyper_velocity_stars_detection.sources.utils import get_main_id
+from hyper_velocity_stars_detection.data_storage import (
+    ContainerSerializerZip,
+    StorageCustomObject,
+    StorageObjectPandasCSV,
+    StorageObjectPickle,
+)
+from hyper_velocity_stars_detection.sources.catalogs import Chandra, XMMNewton, XRSCatalog
+from hyper_velocity_stars_detection.sources.source import (
+    ASTRO_OBJECT,
+    CATALOG_NAME,
+    DATA,
+    RADIO_SCALE,
+    AstroObject,
+)
 
 Simbad.TIMEOUT = 300
 Simbad.ROW_LIMIT = 1
 
+XRSOURCE = "xrsource"
 
-def get_obs_id(obs_ids: list[str | int]) -> list[str]:
+
+def get_xrs_catalog(catalog_name: str | list[str]) -> list[XRSCatalog]:
     """
-    Función que formatea los obs_id de XMMNewton.
+    Selector de catalogos, devuelve una lista de catálogos que usar.
     """
-    list_ids = []
-    for obs_id in obs_ids:
-        obs_id = str(obs_id)
-        n_id = len(obs_id)
-        if n_id < 10:
-            obs_id = "".join(["0"] * int(10 - n_id)) + obs_id
-        list_ids.append(obs_id)
-    return list_ids
 
+    if not isinstance(catalog_name, list):
+        catalog_name = [catalog_name]
 
-@attrs(auto_attribs=True)
-class XCatalog:
-    mission: str
-    searched_columns: list[str]
-
-    format_columns = {
-        "obsid": "str",
-        "name": "str",
-        "ra": "float",
-        "dec": "float",
-        "lii": "float",
-        "bii": "float",
-        "time": "float",
-        "exposure": "float",
-        "public_date": "float",
-        "class": "str",
+    dic_catalogs = {
+        XMMNewton.catalog_name: XMMNewton,
+        Chandra.catalog_name: Chandra,
     }
 
-    def download_data(self, coords: SkyCoord, radius: float) -> pd.DataFrame:
-        """
-        Método que descarga los datos del catalogo asociado teniendo en cuenta los parámetros.
-
-        Parameters
-        ----------
-        coords: SkyCoord
-            Coordenadas del objeto a descarar
-        radius: float
-            Radio de búsqueda en grados.
-        """
-        query_res = Heasarc.query_region(
-            coords,
-            mission=self.mission,
-            radius=radius * u.deg,
-            fields=", ".join(self.searched_columns),
-        )
-        results = query_res.to_pandas()
-        object_cols = results.select_dtypes([object]).columns
-        results[object_cols] = results[object_cols].astype(str)
-
-        results = results.rename(
-            columns=dict(zip(self.searched_columns, list(self.format_columns.keys())))
-        )
-        if results.empty:
-            results = pd.DataFrame(columns=list(self.format_columns.keys()))
-
-        for column, col_type in self.format_columns.items():
-            if results[column].dtype == np.dtype("O"):
-                results[column] = results[column].astype("str").str.strip()
-                results.loc[results[column] == "", column] = None
-
-            results[column] = results[column].astype(col_type)
-
-        results.insert(0, "mission", self.mission)
-        results.insert(1, "main_id", results.name.apply(get_main_id))
-        return results
-
-
-class XCatalogParams:
-    """
-    Clase que recoge el nombre de la misión y las columnas a extraer usando Heasarc.
-    """
-
-    XMNNEWTON = (
-        "xmmmaster",
-        [
-            "OBSID",
-            "NAME",
-            "RA",
-            "DEC",
-            "LII",
-            "BII",
-            "TIME",
-            "ESTIMATED_EXPOSURE",
-            "PUBLIC_DATE",
-            "CLASS",
-        ],
-    )
-    CHANDRA = (
-        "chanmaster",
-        ["OBSID", "NAME", "RA", "DEC", "LII", "BII", "TIME", "EXPOSURE", "PUBLIC_DATE", "CLASS"],
-    )
+    list_catalogs = []
+    for cat_name in catalog_name:
+        try:
+            cat = dic_catalogs[cat_name]()
+        except KeyError:
+            raise ValueError("El catálogo %s no está implementado" % cat_name)
+        list_catalogs.append(cat)
+    return list_catalogs
 
 
 @attrs
-class XSource:
+class XRSourceData:
     """
     Elemento encargado en descargar y gestionar la fuente de rayos X desde el XMNNewton.
     """
 
-    path = attrib(type=str, init=True)
-
-    results = attrib(type=pd.DataFrame, init=False)
-    lightcurves = attrib(type=LightCurve, init=False)
-
-    catalogs = [XCatalog(*XCatalogParams.XMNNEWTON), XCatalog(*XCatalogParams.CHANDRA)]
+    astro_object = attrib(type=AstroObject, init=True)
+    catalog = attrib(type=XRSCatalog | list[XRSCatalog], init=True)
+    radio_scale = attrib(type=float, init=True)
+    data = attrib(type=pd.DataFrame, init=True, default=pd.DataFrame())
+    _storage = ContainerSerializerZip(
+        serializers={
+            ASTRO_OBJECT: StorageCustomObject(custom_class=AstroObject, prefix=ASTRO_OBJECT),
+            CATALOG_NAME: StorageObjectPickle(),
+            RADIO_SCALE: StorageObjectPickle(),
+            DATA: StorageObjectPandasCSV(),
+        }
+    )
 
     def __attrs_post_init__(self):
-        self.lightcurves = LightCurve(os.path.join(self.path_xsource, "light_curves"))
+        if not isinstance(self.catalog, list):
+            self.catalog = [self.catalog]
+
+    def __str__(self):
+        """
+        Método que imprime los tamaños de las muestras asociadas al objeto astronómico.
+        """
+        description = f"Fuentes de rayos X detectadas en el entorno de {self.astro_object.name}:\n"
+        for catalog in self.catalog:
+            data = self.get_data(catalog.catalog_name)
+            value = data.shape[0]
+            description += f"\t - {catalog.catalog_name} - {catalog.catalog_table}: {value}.\n"
+        return description
 
     @property
-    def path_xsource(self) -> str:
-        return os.path.join(self.path, "xsource")
-
-    def download_data(self, coords: SkyCoord, radius: float) -> None:
+    def data_name(self) -> str:
         """
-        Método que descarga los datos del catalogo asociado teniendo en cuenta los parámetros.
+        Nombre asociado al conjunto de muestras de los datos asociados.
+        """
+        catalogs = "-".join([cat.catalog_name for cat in self.catalog])
+        return f"{catalogs}_{self.astro_object.name}_" f"r_{int(self.radio_scale)}"
+
+    @classmethod
+    def load_data(
+        cls,
+        name: str,
+        catalog_name: str | list[str] = None,
+        radius: Optional[float] = None,
+        radius_scale: float = 1.0,
+        **filter_params,
+    ) -> "XRSourceData":
+        """
+        Método que genera el objeto astro data con lso datos filtrados del objeto astronómico
+        a estudiar, descargando los datos correspondientes a la escala del radio de
+        visión utilizado.
 
         Parameters
         ----------
-        coords: SkyCoord
-            Coordenadas del objeto a descarar
-        radius: float
-            Radio de búsqueda en grados.
-        """
-        self.results = pd.DataFrame()
-        for catalog in self.catalogs:
-            df_c = catalog.download_data(coords, radius)
-            self.results = pd.concat((self.results, df_c))
+        name: str
+            Nombre del objeto.
+        catalog_name: str| list[str] = None,
+            Nombre o nombres del catálogo utilizado para descargarlso datos. Si no se indica
+            coge Chandra y XMMNewton.
+        radius: Optional[float] = None
+            Radio de búsqueda en grados. Si no se indica se utilizará radius_scale.
+        radius_scale: float = 1.0
+            Escala del radio de búsqueda en comparación con el campo de visión del objeto.
+            El campo de visión es extraido de la base de datos de Simbad.
+            Solo se utiliza si no se indica el radius
 
-    def download_light_curves(self, cache: bool = False):
+        Returns
+        -------
+        object_data: AstroMetricData
+            Clase que recoge las cuatro muestras de la consulta.
         """
-        Método que descarga las curvas de luz de las observaciones en rayos X asociadas
-        a la fuente.
+        if catalog_name is None:
+            catalog_name = [XMMNewton.catalog_name, Chandra.catalog_name]
+
+        if isinstance(catalog_name, str):
+            catalog_name = [catalog_name]
+
+        logging.info("-- Cargando objeto astronómico %s" % name)
+        astro_object = AstroObject.get_object(name)
+        if radius is None:
+            radius = radius_scale * astro_object.info["ANGULAR_SIZE"][0] / 60
+        logging.info("-- Descargando datos principales. Aplicando los siguientes:")
+        for key, value in filter_params:
+            logging.info("\t %s: %s" % (key, value))
+
+        result = pd.DataFrame()
+        for cat_name in catalog_name:
+            data = astro_object.download_data(
+                catalog_name=cat_name, radius=radius, **filter_params
+            )
+            result = pd.concat((result, data))
+        result = result.reset_index(drop=True)
+        catalog = get_xrs_catalog(catalog_name=catalog_name)
+        xrs_data = cls(astro_object, catalog, radius_scale, result)
+        return xrs_data
+
+    @classmethod
+    def load(cls, filepath: str) -> "XRSourceData":
+        """
+        Método de clase que lee los datos desde un archivo zip dado.
 
         Parameters
         ----------
-        cache: bool, default False
-            Indica si se quiere descargar usando la cache
+        filepath: str
+            Ruta del archivo zip. Este archivo zip debe seguir la siguiente
+            nomenclatura: <object_name>_r_<radius_scale>.zip. Dentro de este
+            archivo zip debe solo incluirse archivos <key>.csv
+
+        Returns
+        -------
+        object_data: AstroMetricData
+            Datos cargados con las muestras del objeto astronómico
+
         """
+        path = filepath
+        if not filepath.endswith(".zip"):
+            path = path + ".zip"
+        container = cls._storage.load(path)
+        container[CATALOG_NAME] = get_xrs_catalog(container[CATALOG_NAME])
+        return cls(**container)
 
-        # Filtramos por XMMNewton porque las curvas de luz solo se descargan del XMMNewton.
-        xmm_results = self.results[self.results.mission == XCatalogParams.XMNNEWTON[0]]
-        os.makedirs(self.lightcurves.path_lightcurves, exist_ok=True)
-        obs_ids = get_obs_id(xmm_results.obsid.astype(str).unique().tolist())
-
-        for obs_id in obs_ids:
-            logging.info(f"Descargando observación {obs_id}")
-            self.lightcurves.download_light_curve(obs_id, cache)
-
-    def save(self, path: Optional[str] = None) -> None:
+    def save(self, path: str) -> None:
         """
-        Método que guarda los elementos de la fuente de rayos x en un archivo ZIP.
+        Método que guarda las muestras del catálogo en un archivo zip.
 
         Parameters
         ----------
-        path: Optional[str], default None
-            Ruta donde para guardar los datos. Por defecto se usa la establecida.
+        path: str
+            Ruta donde se va a guardar las muestras del catálogo.
         """
-        if path is None:
-            path = self.path
-        path_xsource = os.path.join(path, "xsource")
-        os.makedirs(self.path_xsource, exist_ok=True)
-        path_file = os.path.join(self.path_xsource, "xsource_data")
-        StorageObjectPandasCSV().save(path_file, self.results)
-        shutil.make_archive(path_xsource, "zip", self.path_xsource)
+        container = {
+            ASTRO_OBJECT: self.astro_object,
+            CATALOG_NAME: [cat.catalog_name for cat in self.catalog],
+            RADIO_SCALE: self.radio_scale,
+            DATA: self.data,
+        }
+        filename = f"{XRSOURCE}_{self.data_name}"
+        file = os.path.join(path, filename)
+        self._storage.save(file, container)
 
-    def load(self, path: Optional[str] = None):
+    def get_data(self, catalog_name: str) -> pd.DataFrame:
         """
-        Método que descomprime los elementos de la fuente de rayos x desde un archivo ZIP.
+        Método que extrae una copia de los datos asociados al catálogo seleccionado.
 
         Parameters
         ----------
-        path: Optional[str], default None
-            Ruta donde para guardar los datos. Por defecto se usa la establecida.
-        """
-        if path is None:
-            path = self.path
-        path_zip = os.path.join(path, "xsource.zip")
+        catalog_name: str
+            Nombre del catalogo que queremos filtrar
 
-        with ZipFile(path_zip, "r") as zip_instance:
-            if zip_instance.testzip() is not None:
-                raise InvalidFileFormat(f"El archivo '{path_zip}' no es un archivo zip válido")
-            zip_instance.extractall(self.path_xsource)
-        path_file = os.path.join(self.path_xsource, "xsource_data.csv")
-        self.results = StorageObjectPandasCSV().load(path_file)
-        return self.results
+        Returns
+        -------
+        result: pd.DataFrame
+            Copia de los datos asociadso al catálogo.
+        """
+        catalog = get_xrs_catalog(catalog_name)[0]
+        result = self.data[self.data["mission"] == catalog.catalog_table].reset_index(drop=True)
+        return result
