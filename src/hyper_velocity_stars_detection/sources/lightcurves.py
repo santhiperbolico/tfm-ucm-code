@@ -16,6 +16,20 @@ from scipy.optimize import curve_fit
 from scipy.signal import welch
 
 
+def get_obs_id(obs_ids: list[str | int]) -> list[str]:
+    """
+    Función que formatea los obs_id de XMMNewton.
+    """
+    list_ids = []
+    for obs_id in obs_ids:
+        obs_id = str(obs_id)
+        n_id = len(obs_id)
+        if n_id < 10:
+            obs_id = "".join(["0"] * int(10 - n_id)) + obs_id
+        list_ids.append(obs_id)
+    return list_ids
+
+
 def broken_power_law(f, A, f_break, alpha_low, alpha_high) -> float:
     """
     Ley de potencias usada para ajustar la densidad del espectro de potencias.

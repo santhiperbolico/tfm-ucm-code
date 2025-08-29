@@ -3,7 +3,7 @@ import os
 
 from google.cloud import storage
 
-from hyper_velocity_stars_detection.astrobjects import AstroObjectProject
+from hyper_velocity_stars_detection.globular_clusters import GlobularClusterAnalysis
 from hyper_velocity_stars_detection.jobs.utils import ProjectDontExist
 
 
@@ -74,7 +74,7 @@ def download_from_gcs(project_id: str, bucket_name: str, file_path: str, path: s
 
 def load_project(
     cluster_name: str, project_id: str, bucket_name: str, path: str
-) -> AstroObjectProject:
+) -> GlobularClusterAnalysis:
     """
     Función que descarga o carga desde la cache los datos limpios en un proyecto.
 
@@ -91,7 +91,7 @@ def load_project(
 
     Returns
     -------
-    project: AstroObjectProject
+    project: GlobularClusterAnalysis
         Proyecto donde se guardan los resultados.
     """
     client = storage.Client(project=project_id)
@@ -103,7 +103,7 @@ def load_project(
     blob = bucket.blob(blob_name=file_path)
     if blob.exists():
         blob.download_to_filename(os.path.join(path, file_path))
-        project = AstroObjectProject.load_project(cluster_name, path, True)
+        project = GlobularClusterAnalysis.load(path)
         return project
 
     raise ProjectDontExist("No hay datos descargados del proyecto")

@@ -8,7 +8,7 @@ import pandas as pd
 from google.cloud import storage
 from tqdm import tqdm
 
-from hyper_velocity_stars_detection.astrobjects import AstroObjectProject
+from hyper_velocity_stars_detection.globular_clusters import GlobularClusterAnalysis
 from hyper_velocity_stars_detection.jobs.google_jobs.utils import download_from_gcs, load_project
 from hyper_velocity_stars_detection.jobs.utils import ProjectDontExist, read_catalog_file
 from hyper_velocity_stars_detection.tools.stadistics_utils import is_multivariate_normality
@@ -33,7 +33,7 @@ def get_params(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def get_project_from_cluster(cluster_name: str, path: str) -> AstroObjectProject | None:
+def get_project_from_cluster(cluster_name: str, path: str) -> GlobularClusterAnalysis | None:
     """
     Función que extrae en el caso de que corresponda las estrellas del cúmulo globular
     encontrado por el método.
@@ -47,7 +47,7 @@ def get_project_from_cluster(cluster_name: str, path: str) -> AstroObjectProject
 
     Returns
     -------
-    project: AstroObjectProject | None
+    project: GlobularClusterAnalysis | None
         Si se detecta que el cúmulo globular ha sido estudiado se devuelve el
         proyecto seleccionado. En caso contrario devuelve None.
     """
@@ -99,9 +99,9 @@ if __name__ == "__main__":
                 logging.info("El proyecto %s no existe." % cluster_name)
             else:
                 data_name = "df_1_c2"
-                if project.get_data(data_name).shape[0] < 16000:
+                if project.astro_data.get_data(data_name).shape[0] < 16000:
                     data_name = "df_1_c0"
-                df_stars = project.data_list[0].data[data_name]
+                df_stars = project.astro_data.get_data(data_name)
                 df_stars = df_stars[~df_stars[columns_params.get("7p")].isna()]
                 if df_stars.shape[0] > 3:
                     for key, columns in columns_params.items():

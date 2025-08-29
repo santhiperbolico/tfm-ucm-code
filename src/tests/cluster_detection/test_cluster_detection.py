@@ -1,3 +1,4 @@
+import os.path
 from tempfile import TemporaryDirectory
 
 import numpy as np
@@ -9,6 +10,7 @@ from hyper_velocity_stars_detection.cluster_detection.cluster_detection import (
     ClusteringDetection,
     ClusteringResults,
 )
+from hyper_velocity_stars_detection.variables_names import CLUSTERING_RESULTS
 
 
 @pytest.fixture
@@ -47,7 +49,8 @@ def data_labels() -> ClusteringResults:
 def test_clusteringresults_save_load(data_labels):
     with TemporaryDirectory() as temp_dir:
         data_labels.save(temp_dir)
-        new_data = ClusteringResults.load(temp_dir)
+        file = os.path.join(temp_dir, CLUSTERING_RESULTS)
+        new_data = ClusteringResults.load(file)
 
     pd.testing.assert_frame_equal(new_data.df_stars, data_labels.df_stars)
     assert new_data.columns == data_labels.columns

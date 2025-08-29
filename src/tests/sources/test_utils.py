@@ -36,7 +36,7 @@ def df_data():
 def test_get_object_from_heasarc(heasarc_class_mock, cluster):
     heasarc_mock = heasarc_class_mock.return_value
     heasarc_mock.query_object.return_value = Table.read("tests/test_data/result_heasarc.fits")
-    result = get_object_from_heasarc("jajajaja")
+    result = get_object_from_heasarc(cluster)
     assert isinstance(result, Table)
     assert result["RA"] == pytest.approx(cluster.ra, abs=1e-3)
     assert result["DEC"] == pytest.approx(cluster.dec, abs=1e-3)

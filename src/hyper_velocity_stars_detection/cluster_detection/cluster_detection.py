@@ -1,5 +1,5 @@
 import os
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -18,15 +18,27 @@ from hyper_velocity_stars_detection.cluster_detection.preprocessing_methods impo
 )
 from hyper_velocity_stars_detection.data_storage import (
     ContainerSerializerZip,
+    StorageCustomObject,
     StorageObjectPandasCSV,
     StorageObjectPickle,
 )
+from hyper_velocity_stars_detection.variables_names import CLUSTERING_DETECTION, CLUSTERING_RESULTS
+
+CLUSTER_MODEL = "model"
+CLUSTER_NOISE_MODEL = "noise_method"
+CLUSTER_SCALER_MODEL = "scaler"
+CLUSTER_LABELS = "labels_"
+
+CLUSTERING_STARS = "df_stars"
+CLUSTERING_COLUMNS = "columns"
+CLUSTERING_COLUMNS_CLUS = "columns_to_clus"
+CLUSTERING_MAIN_LABEL = "main_label"
 
 
 def get_distance_from_references(
     labels: np.ndarray,
-    cluster_data: pd.DataFrame | np.ndarray,
-    reference_cluster: pd.Series | pd.DataFrame,
+    cluster_data: Union[pd.DataFrame, np.ndarray],
+    reference_cluster: Union[pd.Series, pd.DataFrame],
     columns_cluster: list[str] = None,
 ) -> np.ndarray:
     """
@@ -36,10 +48,10 @@ def get_distance_from_references(
     ----------
     labels: np.ndarray,
         Etiqueta de cada elemento del cluster data.
-    cluster_data: pd.DataFrame | np.ndarray,
+    cluster_data: Union[pd.DataFrame, np.ndarray],
         Datos de las estrellas analizados. Si se el pasa un array debe ser con los de las columnas
         correspondientes a columns_cluster.
-    reference_cluster: pd.DataFrame | pd.DataFrame
+    reference_cluster: Union[pd.Series,  pd.DataFrame]
         Datos de referencia del cluster
     columns_cluster: list[str],
         Lista de columnas utilizadas en el clustering
@@ -80,10 +92,10 @@ class ClusteringDetection:
 
     _storage = ContainerSerializerZip(
         serializers={
-            "model": StorageObjectPickle(),
-            "noise_method": StorageObjectPickle(),
-            "scaler": StorageObjectPickle(),
-            "labels_": StorageObjectPickle(),
+            CLUSTER_MODEL: StorageObjectPickle(),
+            CLUSTER_NOISE_MODEL: StorageObjectPickle(),
+            CLUSTER_SCALER_MODEL: StorageObjectPickle(),
+            CLUSTER_LABELS: StorageObjectPickle(),
         }
     )
 
@@ -211,12 +223,12 @@ class ClusteringDetection:
         path: str
             Ruta donde se quiere guardar los archivos.
         """
-        path_name = os.path.join(path, "clustering_method")
+        path_name = os.path.join(path, CLUSTERING_DETECTION)
         container = {
-            "model": self.model,
-            "noise_method": self.noise_method,
-            "scaler": self.scaler,
-            "labels_": self.labels_,
+            CLUSTER_MODEL: self.model,
+            CLUSTER_NOISE_MODEL: self.noise_method,
+            CLUSTER_SCALER_MODEL: self.scaler,
+            CLUSTER_LABELS: self.labels_,
         }
         self._storage.save(path_name, container)
 
@@ -268,8 +280,10 @@ class ClusteringDetection:
         object: ClusteringDetection
             Objeto instanciado.
         """
-        path_name = os.path.join(path, "clustering_method.zip")
-        params = cls._storage.load(path_name)
+        filepath = path
+        if not filepath.endswith(".zip"):
+            filepath = filepath + ".zip"
+        params = cls._storage.load(filepath)
         return cls(**params)
 
 
@@ -287,10 +301,11 @@ class ClusteringResults:
 
     _storage = ContainerSerializerZip(
         serializers={
-            "df_stars": StorageObjectPandasCSV(),
-            "columns": StorageObjectPickle(),
-            "columns_to_clus": StorageObjectPickle(),
-            "main_label": StorageObjectPickle(),
+            CLUSTERING_STARS: StorageObjectPandasCSV(),
+            CLUSTERING_COLUMNS: StorageObjectPickle(),
+            CLUSTERING_COLUMNS_CLUS: StorageObjectPickle(),
+            CLUSTERING_MAIN_LABEL: StorageObjectPickle(),
+            CLUSTERING_DETECTION: StorageCustomObject(ClusteringDetection, CLUSTERING_DETECTION),
         }
     )
 
@@ -359,7 +374,7 @@ class ClusteringResults:
 
         Parameters
         ----------
-        main_label: Optional[int | list[int]], default None
+        main_label: Optional[int | list[int]] = None
             Etiqueta que se quiere utilizar ocmo principal. Por defecto se
             utiliza la mayoritaria.
         cluster_data:  Optional[pd.DataFrame] = None
@@ -439,13 +454,13 @@ class ClusteringResults:
         path: str
             Ruta donde se quiere guardar los archivos.
         """
-        self.clustering.save(path)
-        path_name = os.path.join(path, "stars_clustering")
+        path_name = os.path.join(path, CLUSTERING_RESULTS)
         container = {
-            "df_stars": self.df_stars,
-            "columns": self.columns,
-            "columns_to_clus": self.columns_to_clus,
-            "main_label": self.main_label,
+            CLUSTERING_STARS: self.df_stars,
+            CLUSTERING_COLUMNS: self.columns,
+            CLUSTERING_COLUMNS_CLUS: self.columns_to_clus,
+            CLUSTERING_MAIN_LABEL: self.main_label,
+            CLUSTERING_DETECTION: self.clustering,
         }
         self._storage.save(path_name, container)
 
@@ -464,10 +479,11 @@ class ClusteringResults:
         object: ClusteringResults
             Objeto instanciado.
         """
-        clustering = ClusteringDetection.load(path)
-        path_name = os.path.join(path, "stars_clustering.zip")
+        filepath = path
+        if not path.endswith(".zip"):
+            filepath = filepath + ".zip"
+        path_name = os.path.join(path, filepath)
         params = cls._storage.load(path_name)
-        params["clustering"] = clustering
         return cls(**params)
 
     def selected_hvs(

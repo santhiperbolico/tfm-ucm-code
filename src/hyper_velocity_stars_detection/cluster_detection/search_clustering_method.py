@@ -240,3 +240,39 @@ class ParamsOptimizator:
             return 1e6
 
         return objective
+
+
+GM_PARAMS_OPTIMIZATOR = ParamsOptimizator(
+    [
+        ParamsDistribution(
+            "gaussian_mixture",
+            ["standard", None],
+            [None],
+            None,
+        )
+    ]
+)
+
+
+DEFAULT_PARAMS_OPTIMIZATOR = ParamsOptimizator(
+    [
+        ParamsDistribution(
+            "dbscan",
+            ["standard"],
+            [None],
+            None,
+        ),
+        ParamsDistribution(
+            "hdbscan",
+            ["standard"],
+            [None],
+            None,
+        ),
+        ParamsDistribution(
+            "gaussian_mixture",
+            ["standard", "minmax", None],
+            ["isolation_forest_method", "local_outlier_method", None],
+            None,
+        ),
+    ]
+)

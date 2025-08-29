@@ -62,8 +62,8 @@ def get_l_b_velocities(
     """
 
     velocity_coord = SkyCoord(
-        ra=ra * u.mas,
-        dec=dec * u.mas,
+        ra=ra * u.deg,
+        dec=dec * u.deg,
         pm_ra_cosdec=pm_ra_cosdec * u.mas / u.yr,
         pm_dec=pm_dec * u.mas / u.yr,
         frame="icrs",

@@ -5,7 +5,7 @@ import sys
 from tqdm import tqdm
 
 from hyper_velocity_stars_detection.jobs.utils import get_params
-from hyper_velocity_stars_detection.sources.source import AstroObject, AstroObjectData
+from hyper_velocity_stars_detection.sources.source import AstroMetricData, AstroObject
 
 if __name__ == "__main__":
     root = logging.getLogger()
@@ -25,7 +25,7 @@ if __name__ == "__main__":
             pm_kms = None
             if radio_scale > 1:
                 pm_kms = args.pm_kms
-            astro_data = AstroObjectData.load_data_from_object(
+            astro_data = AstroMetricData.load_data_from_object(
                 astro_object, radio_scale, pmra_kms_min=pm_kms, pmdec_kms_min=pm_kms
             )
             path_temp = os.path.join(args.path, name)
