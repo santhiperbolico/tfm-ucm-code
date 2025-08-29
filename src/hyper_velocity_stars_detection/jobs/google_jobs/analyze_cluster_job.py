@@ -8,10 +8,11 @@ import pandas as pd
 from google.cloud import storage
 from tqdm import tqdm
 
-from hyper_velocity_stars_detection.astrobjects import AstroObject, AstroObjectProject
+from hyper_velocity_stars_detection.globular_clusters import GlobularClusterAnalysis
 from hyper_velocity_stars_detection.jobs.google_jobs.utils import download_from_gcs, load_project
 from hyper_velocity_stars_detection.jobs.utils import ProjectDontExist, read_catalog_file
 from hyper_velocity_stars_detection.sources.clusters_catalogs import get_all_cluster_data
+from hyper_velocity_stars_detection.sources.source import AstroObject
 
 
 def get_params(argv: list[str]) -> argparse.Namespace:
@@ -35,7 +36,7 @@ def get_params(argv: list[str]) -> argparse.Namespace:
 
 def extract_globular_cluster(
     cluster_name: str, selected_clusters: list[str]
-) -> AstroObjectProject | None:
+) -> GlobularClusterAnalysis | None:
     """
     Función que extrae en el caso de que corresponda las estrellas del cúmulo globular
     encontrado por el método.
@@ -49,7 +50,7 @@ def extract_globular_cluster(
 
     Returns
     -------
-    project: AstroObjectProject | None
+    project: GlobularClusterAnalysis | None
         Si se detecta que el cúmulo globular ha sido estudiado se devuelve el
         proyecto seleccionado. En caso contrario devuelve None.
     """
@@ -217,23 +218,23 @@ if __name__ == "__main__":
             gc = project.clustering_results.remove_outliers_gc()
             gc_pm = np.array([gc.pmra.mean(), gc.pmdec.mean()])
             hvs = project.clustering_results.selected_hvs(
-                df_hvs_candidates=project.get_data("df_6_c1"),
+                df_hvs_candidates=project.astro_data.get_data("df_6_c1"),
                 factor_sigma=1.0,
                 hvs_pm=150,
                 random_state=123,
             )
             hvs_2 = project.clustering_results.selected_hvs(
-                df_hvs_candidates=project.get_data("df_6_c1"),
+                df_hvs_candidates=project.astro_data.get_data("df_6_c1"),
                 factor_sigma=2.0,
                 hvs_pm=150,
                 random_state=123,
             )
-            hvs_distance = get_distance_from_center(project.astro_object, hvs)
-            hvs_distance_2 = get_distance_from_center(project.astro_object, hvs_2)
+            hvs_distance = get_distance_from_center(project.astro_data.astro_object, hvs)
+            hvs_distance_2 = get_distance_from_center(project.astro_data.astro_object, hvs_2)
             hvs_pm = hvs[["pmra", "pmdec"]].values
             hvs_pm_2 = hvs_2[["pmra", "pmdec"]].values
-            xsource = project.xsource.results[project.xsource.results.main_id == project.name]
-            xsource_distance = get_distance_from_center(project.astro_object, xsource)
+            xsource = project.xrsource.results[project.xrsource.results.main_id == project.name]
+            xsource_distance = get_distance_from_center(project.astro_data.astro_object, xsource)
 
             hvs_cos_theta = (gc_pm * hvs_pm).sum(axis=1) / (
                 np.linalg.norm(hvs_pm, axis=1) * np.linalg.norm(gc_pm)

@@ -7,8 +7,8 @@ from typing import Optional
 import pandas as pd
 from attr import attrs
 
-from hyper_velocity_stars_detection.astrobjects import AstroObjectProject
-from hyper_velocity_stars_detection.sources.catalogs import CatalogsType
+from hyper_velocity_stars_detection.globular_clusters import GlobularClusterAnalysis
+from hyper_velocity_stars_detection.sources.catalogs import GaiaDR3
 from hyper_velocity_stars_detection.sources.source import AstroObject
 
 
@@ -42,7 +42,7 @@ class Cluster:
     filter_parallax_max: Optional[float] = None
 
 
-def load_project(cluster_name: str, path: str, from_zip: bool = False) -> AstroObjectProject:
+def load_project(cluster_name: str, path: str, from_zip: bool = False) -> GlobularClusterAnalysis:
     """
     Función que descarga o carga desde la cache los datos limpios en un proyecto.
 
@@ -55,26 +55,22 @@ def load_project(cluster_name: str, path: str, from_zip: bool = False) -> AstroO
 
     Returns
     -------
-    project: AstroObjectProject
+    project: GlobularClusterAnalysis
         Proyecto donde se guardan los resultados.
     """
     path_project = os.path.join(path, cluster_name)
     if from_zip and os.path.exists(path_project + ".zip"):
-        project = AstroObjectProject.load_project(cluster_name, path, True)
+        project = GlobularClusterAnalysis.load(path)
         logging.info("Cargando primer catálogo")
-        logging.info(str(project.data_list[0]))
-        logging.info("Cargando segundo catálogo")
-        logging.info(str(project.data_list[1]))
+        logging.info(str(project))
         return project
 
     if os.path.exists(path_project):
         zip_f = [file for file in os.listdir(path_project) if ".zip" == file[-4:]]
         if len(zip_f) > 0:
-            project = AstroObjectProject.load_project(cluster_name, path, False)
+            project = GlobularClusterAnalysis.load(path)
             logging.info("Cargando primer catálogo")
-            logging.info(str(project.data_list[0]))
-            logging.info("Cargando segundo catálogo")
-            logging.info(str(project.data_list[1]))
+            logging.info(str(project))
             return project
 
     raise ProjectDontExist("No hay datos descargados del proyecto")
@@ -85,7 +81,7 @@ def download_object(
     read_from_cache: bool,
     path: str,
     radio_scale: float,
-    catalog_name: CatalogsType = CatalogsType.GAIA_DR3,
+    catalog_name: str = GaiaDR3.catalog_name,
     filter_parallax_min: Optional[float] = None,
     filter_parallax_max: Optional[float] = None,
     filter_parallax_error: float = 0.30,
@@ -132,13 +128,13 @@ def download_object(
         logging.info("\t - No hay archivos para cargar en la cache. Se van a descargar los datos.")
 
     if not isinstance(result, pd.DataFrame):
-        _ = astro_object.download_object(
+        _ = astro_object.download_data(
             catalog_name=catalog_name,
             radius_scale=radio_scale,
+            path=path,
             filter_parallax_min=filter_parallax_min,
             filter_parallax_max=filter_parallax_max,
             filter_parallax_error=filter_parallax_error,
-            path=path,
             return_data=False,
         )
     return astro_object
@@ -149,7 +145,7 @@ def download_astro_data(
     read_from_cache: bool,
     path: str,
     radio_scale: float | list[float],
-    catalog_name: CatalogsType = CatalogsType.GAIA_DR3,
+    catalog_name: str = GaiaDR3.catalog_name,
     filter_parallax_min: float = None,
     filter_parallax_max: Optional[float] = None,
     filter_parallax_error: float = 0.30,

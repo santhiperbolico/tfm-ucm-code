@@ -14,17 +14,15 @@ from hyper_velocity_stars_detection.data_storage import (
 )
 from hyper_velocity_stars_detection.sources.catalogs import Chandra, XMMNewton, XRSCatalog
 from hyper_velocity_stars_detection.sources.source import (
-    ASTRO_OBJECT,
     CATALOG_NAME,
     DATA,
     RADIO_SCALE,
     AstroObject,
 )
+from hyper_velocity_stars_detection.variables_names import ASTRO_OBJECT, XRSOURCE
 
 Simbad.TIMEOUT = 300
 Simbad.ROW_LIMIT = 1
-
-XRSOURCE = "xrsource"
 
 
 def get_xrs_catalog(catalog_name: str | list[str]) -> list[XRSCatalog]:

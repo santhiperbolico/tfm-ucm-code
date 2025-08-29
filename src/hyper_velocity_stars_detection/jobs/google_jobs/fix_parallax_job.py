@@ -7,7 +7,7 @@ from tempfile import TemporaryDirectory
 from google.cloud import storage
 from tqdm import tqdm
 
-from hyper_velocity_stars_detection.astrobjects import AstroObjectProject
+from hyper_velocity_stars_detection.globular_clusters import GlobularClusterAnalysis
 from hyper_velocity_stars_detection.jobs.google_jobs.utils import download_from_gcs, load_project
 from hyper_velocity_stars_detection.jobs.utils import ProjectDontExist, read_catalog_file
 
@@ -31,7 +31,7 @@ def get_params(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def fix_project_parallax(cluster_name: str, path: str) -> AstroObjectProject | None:
+def fix_project_parallax(cluster_name: str, path: str) -> GlobularClusterAnalysis | None:
     """
     Función que extrae en el caso de que corresponda las estrellas del cúmulo globular
     encontrado por el método.
@@ -45,7 +45,7 @@ def fix_project_parallax(cluster_name: str, path: str) -> AstroObjectProject | N
 
     Returns
     -------
-    project: AstroObjectProject | None
+    project: GlobularClusterAnalysis | None
         Si se detecta que el cúmulo globular ha sido estudiado se devuelve el
         proyecto seleccionado. En caso contrario devuelve None.
     """
@@ -61,8 +61,7 @@ def fix_project_parallax(cluster_name: str, path: str) -> AstroObjectProject | N
         except ProjectDontExist:
             return None
 
-    for data in project.data_list:
-        data.fix_parallax(warnings=False)
+    project.astro_data.fix_parallax(warnings=False)
     return project
 
 
@@ -91,7 +90,7 @@ if __name__ == "__main__":
             else:
                 file_name = f"{cluster_name}.zip"
                 logging.info("-- Guardando los datos en  %s." % file_name)
-                project.save_project(to_zip=True)
+                project.save(temp_path)
 
                 logging.info("-- Subiendo datos a Storage %s." % file_name)
                 file_path = os.path.join(temp_path, file_name)

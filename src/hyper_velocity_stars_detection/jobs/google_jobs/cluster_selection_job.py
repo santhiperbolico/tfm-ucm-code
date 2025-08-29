@@ -8,7 +8,9 @@ import pandas as pd
 from google.cloud import storage
 from tqdm import tqdm
 
-from hyper_velocity_stars_detection.astrobjects import GM_PARAMS_OPTIMIZATOR
+from hyper_velocity_stars_detection.cluster_detection.search_clustering_method import (
+    GM_PARAMS_OPTIMIZATOR,
+)
 from hyper_velocity_stars_detection.jobs.google_jobs.utils import download_from_gcs, load_project
 from hyper_velocity_stars_detection.jobs.utils import (
     DefaultParamsClusteringDetection,

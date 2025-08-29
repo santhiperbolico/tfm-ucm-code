@@ -246,14 +246,18 @@ class ContainerSerializerZip:
 
     _serializers: Mapping[str, StorageObject]
 
-    def save(self, path: str, container: Mapping[str, Any]) -> None:
+    def save(self, path: str, container: Mapping[str, Any], ignore_errors: bool = False) -> None:
         with TemporaryDirectory() as temp_path:
             for name, serializer in self._serializers.items():
                 temp_file_path = os.path.join(temp_path, name)
-                serializer.save(temp_file_path, container[name])
+                try:
+                    serializer.save(temp_file_path, container[name])
+                except AttributeError as error:
+                    if not ignore_errors:
+                        raise error
             shutil.make_archive(path, "zip", temp_path)
 
-    def load(self, path: str) -> Dict[str, Any]:
+    def load(self, path: str, ignore_errors: bool = False) -> Dict[str, Any]:
         with ZipFile(path, "r") as zip_instance:
             if zip_instance.testzip() is not None:
                 raise InvalidFileFormat(f"El archivo '{path}' no es un archivo zip válido")
@@ -262,7 +266,11 @@ class ContainerSerializerZip:
                 container = {}
                 for name, serializer in self._serializers.items():
                     temp_file_path = os.path.join(temp_path, name)
-                    container[name] = serializer.load(temp_file_path)
+                    try:
+                        container[name] = serializer.load(temp_file_path)
+                    except FileNotFoundError as error:
+                        if not ignore_errors:
+                            raise error
         return container
 
     @staticmethod

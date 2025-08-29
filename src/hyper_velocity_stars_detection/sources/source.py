@@ -1,5 +1,6 @@
 import logging
 import os
+from abc import ABC, abstractmethod
 from typing import Optional
 
 import astropy.units as u
@@ -22,36 +23,150 @@ from hyper_velocity_stars_detection.sources.metrics import (
     get_l_b_velocities,
 )
 from hyper_velocity_stars_detection.sources.utils import get_object_from_simbad, get_skycoords
+from hyper_velocity_stars_detection.variables_names import (
+    ASTRO_OBJECT,
+    ASTRO_OBJECT_DATA,
+    PARALLAX,
+    PARALLAX_ERROR,
+    PM,
+    PM_DEC,
+    PM_DEC_ERROR,
+    PM_DEC_KMS,
+    PM_G_LATITUDE,
+    PM_G_LONGITUDE,
+    PM_KMS,
+    PM_RA,
+    PM_RA_ERROR,
+    PM_RA_KMS,
+)
 
 INFO_JSON_NAME = "info_json"
 INFO_VOT_NAME = "info_vot"
 
-ASTRO_OBJECT = "astro_object"
-ASTRO_OBJECT_DATA = "astro_data"
 CATALOG_NAME = "catalog"
 RADIO_SCALE = "radio_scale"
 DATA = "data"
 
 
-class DataSampleType:
-    DATA_SAMPLE_1 = "_c1"
-    DATA_SAMPLE_2 = "_c2"
-    DATA_SAMPLE_3 = "_c3"
-    DATA_SAMPLE_4 = "_c4"
+class DataSample(ABC):
+    label = "sample_label"
+    description = "description"
+
+    @staticmethod
+    @abstractmethod
+    def get_sample(df_data: pd.DataFrame) -> np.ndarray:
+        raise NotImplementedError
 
 
-SAMPLE_DESCRIPTION = {
-    DataSampleType.DATA_SAMPLE_1: "Todas las estrellas seleccionadas",
-    DataSampleType.DATA_SAMPLE_2: "Las estrellas con errores de paralaje y pm menores al 10%",
-    DataSampleType.DATA_SAMPLE_3: "Las estrellas con un error de paralaje menor del 30% y de pm "
-    "menores al 10%",
-    DataSampleType.DATA_SAMPLE_4: "Las estrellas con un error de paralaje menor del 10% y de pm "
-    "menores al 20%.",
-}
+class DataSample1(DataSample):
+    label = "df_c1"
+    description = "Todas las estrellas seleccionadas"
+
+    @staticmethod
+    def get_sample(df_data: pd.DataFrame) -> np.ndarray:
+        """
+        Método que devuelve una mascara con una muestra de datos siguiendo el criterio:
+        - Todas las estrellas seleccionadas
+
+        Parameters
+        ----------
+        df_data: pd.DataFrame,
+            Datos originales
+        Returns
+        -------
+        mask_data: np.ndarray
+            Array de booleanos que devuelve la muestra seleccionada.
+        """
+        mask_data = np.ones(df_data.shape[0]).astype(bool)
+        return mask_data
 
 
-def get_data_sample(data: pd.DataFrame, sample_type: str) -> np.ndarray:
-    """ "
+class DataSample2(DataSample):
+    label = "df_c2"
+    description = ("Las estrellas con errores de paralaje y pm menores al 10%",)
+
+    @staticmethod
+    def get_sample(df_data: pd.DataFrame) -> np.ndarray:
+        """
+        Método que devuelve una mascara con una muestra de datos siguiendo el criterio:
+        - Las estrellas con errores de paralaje y pm menores al 10%
+
+        Parameters
+        ----------
+        df_data: pd.DataFrame,
+            Datos originales
+        Returns
+        -------
+        mask_data: np.ndarray
+            Array de booleanos que devuelve la muestra seleccionada.
+        """
+        mask_data = (
+            (df_data[PM_RA_ERROR] < 0.10)
+            & (df_data[PM_DEC_ERROR] < 0.10)
+            & (df_data[PARALLAX_ERROR] < 0.10)
+        )
+        return mask_data
+
+
+class DataSample3(DataSample):
+    label = "df_c3"
+    description = "Las estrellas con un error de paralaje menor del 30% y de pm menores al 10%"
+
+    @staticmethod
+    def get_sample(df_data: pd.DataFrame) -> np.ndarray:
+        """
+        Método que devuelve una mascara con una muestra de datos siguiendo el criterio:
+        - Las estrellas con un error de paralaje menor del 30% y de pm menores al 10%
+
+        Parameters
+        ----------
+        df_data: pd.DataFrame,
+            Datos originales
+        Returns
+        -------
+        mask_data: np.ndarray
+            Array de booleanos que devuelve la muestra seleccionada.
+        """
+        mask_data = (
+            (df_data[PM_RA_ERROR] < 0.10)
+            & (df_data[PM_DEC_ERROR] < 0.10)
+            & (df_data[PARALLAX_ERROR] < 0.30)
+        )
+        return mask_data
+
+
+class DataSample4(DataSample):
+    label = "df_c4"
+    description = "Las estrellas con un error de paralaje menor del 10% y de pm menores al 20%."
+
+    @staticmethod
+    def get_sample(df_data: pd.DataFrame) -> np.ndarray:
+        """
+        Método que devuelve una mascara con una muestra de datos siguiendo el criterio:
+        - Las estrellas con un error de paralaje menor del 10% y de pm menores al 20%.
+
+        Parameters
+        ----------
+        df_data: pd.DataFrame,
+            Datos originales
+        Returns
+        -------
+        mask_data: np.ndarray
+            Array de booleanos que devuelve la muestra seleccionada.
+        """
+
+        mask_data = (
+            (df_data[PM_RA_ERROR] < 0.30)
+            & (df_data[PM_DEC_ERROR] < 0.30)
+            & (df_data[PARALLAX_ERROR] < 0.10)
+        )
+        return mask_data
+
+
+def get_data_sample(
+    data: pd.DataFrame, sample_type: str, data_sample_types: list[DataSample]
+) -> np.ndarray:
+    """
     Método que devuelve una mascara con una muestra  de datos siguiendo los siguientes
     criterios y el tipo de muestra seleccionada.
     - DATA_SAMPLE_1: Todas las estrellas seleccionadas.
@@ -65,33 +180,17 @@ def get_data_sample(data: pd.DataFrame, sample_type: str) -> np.ndarray:
         Datos originales
     sample_type: str
         Nombre de los datos donde termina con el sufico que indica el tipo de muestra.
+    data_sample_types: list[DataSample]
+        Lista de las muestras de viables a analizar.
 
     Returns
     -------
     mask_data: np.ndarray
         Array de booleanos que devuelve la muestra seleccionada.
     """
-    mask_data = np.ones(data.shape[0]).astype(bool)
-    if sample_type.endswith(DataSampleType.DATA_SAMPLE_1):
-        return mask_data
-
-    if sample_type.endswith(DataSampleType.DATA_SAMPLE_2):
-        mask_data = (
-            (data.pmra_error < 0.10) & (data.pmdec_error < 0.10) & (data.parallax_error < 0.10)
-        )
-        return mask_data
-
-    if sample_type.endswith(DataSampleType.DATA_SAMPLE_3):
-        mask_data = (
-            (data.pmra_error < 0.10) & (data.pmdec_error < 0.10) & (data.parallax_error < 0.30)
-        )
-        return mask_data
-
-    if sample_type.endswith(DataSampleType.DATA_SAMPLE_4):
-        mask_data = (
-            (data.pmra_error < 0.30) & (data.pmdec_error < 0.30) & (data.parallax_error < 0.10)
-        )
-        return mask_data
+    for data_sample in data_sample_types:
+        if sample_type == data_sample.label:
+            return data_sample.get_sample(data)
 
     raise ValueError(
         "El tipo de muestra %s que se quiere seleccionar no está implementada." % sample_type
@@ -141,8 +240,6 @@ class AstroObject:
              Nombre del tipo del catálogo a utilizar.
          radius: float
             Radio de búsqueda, en grados.
-         path: str, default "."
-            Ruta donde se quiere guardar el archivo
 
         Returns
          -------
@@ -221,6 +318,7 @@ class AstroMetricData:
             DATA: StorageObjectPandasCSV(),
         }
     )
+    _data_samples = [DataSample1(), DataSample2(), DataSample3(), DataSample4()]
 
     def __str__(self):
         """
@@ -230,9 +328,9 @@ class AstroMetricData:
             f"Muestras seleccionadas del objeto astronómico {self.astro_object.name} "
             f"con radio {self.radio_scale}:\n"
         )
-        for key, description in SAMPLE_DESCRIPTION.items():
-            value = get_data_sample(self.data, key).sum()
-            description += f"\t - {key} - {description}: {value}.\n"
+        for data_sample in self._data_samples:
+            value = get_data_sample(self.data, data_sample.label, self._data_samples).sum()
+            description += f"\t - {data_sample.label} - {data_sample.description}: {value}.\n"
         return description
 
     @property
@@ -280,6 +378,13 @@ class AstroMetricData:
         astro_object = AstroObject.get_object(name)
         if radius is None:
             radius = radius_scale * astro_object.info["ANGULAR_SIZE"][0] / 60
+
+        catalog = get_catalog(catalog_name=catalog_name)
+        if not isinstance(catalog, GaiaCatalog):
+            raise ValueError(
+                "El catalogo seleccionado no se corresponde con uno válido para" "astrometría."
+            )
+
         logging.info("-- Descargando datos principales. Aplicando los siguientes:")
         for key, value in filter_params:
             logging.info("\t %s: %s" % (key, value))
@@ -287,7 +392,6 @@ class AstroMetricData:
         data = astro_object.download_data(
             catalog_name=catalog_name, radius=radius, **filter_params
         )
-        catalog = get_catalog(catalog_name=catalog_name)
         astro_data = cls(astro_object, catalog, radius_scale, data)
 
         logging.info("-- Preprocesando datos.")
@@ -354,9 +458,12 @@ class AstroMetricData:
             Copia de los datos asociadso a la muestra g_name.
         """
         try:
-            mask_data = get_data_sample(self.data, g_name)
+            mask_data = get_data_sample(self.data, g_name, self._data_samples)
         except ValueError:
-            raise ValueError(f"El catalogo de los datos {g_name} es erroneo. ")
+            raise ValueError(
+                f"El catalogo de los datos {g_name} es erroneo. Selecciona"
+                f"una muestra de: {list(ds.label for ds in self._data_samples)}"
+            )
         return self.data[mask_data].copy()
 
     def fix_parallax(self) -> None:
@@ -365,7 +472,7 @@ class AstroMetricData:
         implementado por el catálogo y guardando lso datos originales de paralaje en la columna
         parallax_orig. Si el catálogo no tiene implementado el método de corrección no hace nada.
         """
-        if "parallax_orig" in self.data:
+        if PARALLAX + "_orig" in self.data:
             raise RuntimeError(
                 "Ya existe una columna ajustada, revisa tus datos y restablece"
                 "la columna 'parallax_corrected' en caso de querer volver a "
@@ -380,22 +487,22 @@ class AstroMetricData:
                 "en el catálogo %s" % self.catalog.catalog_name
             )
         if isinstance(parallax_corrected, np.ndarray):
-            self.data["parallax_orig"] = self.data.parallax.values
-            self.data["parallax"] = parallax_corrected
+            self.data[PARALLAX + "_orig"] = self.data.parallax.values
+            self.data[PARALLAX] = parallax_corrected
 
     def calculate_pm_to_kms(self) -> None:
         """
         Método que calcula el movimiento propio en km por segundo. Modifica el atributo data.
         """
-        self.data["pmra_kms"] = convert_mas_yr_in_km_s(
-            self.data["parallax"].values, self.data["pmra"].values
+        self.data[PM_RA_KMS] = convert_mas_yr_in_km_s(
+            self.data[PARALLAX].values, self.data[PM_RA].values
         )
-        self.data["pmdec_kms"] = convert_mas_yr_in_km_s(
-            self.data["parallax"].values, self.data["pmdec"].values
+        self.data[PM_DEC_KMS] = convert_mas_yr_in_km_s(
+            self.data[PARALLAX].values, self.data[PM_DEC].values
         )
-        self.data["pm_kms"] = np.sqrt(self.data.pmra_kms**2 + self.data.pmdec_kms**2)
-        self.data["pm"] = np.sqrt(self.data.pmra**2 + self.data.pmdec**2)
-        self.data["pm_l"], self.data["pm_b"] = get_l_b_velocities(
+        self.data[PM_KMS] = np.sqrt(self.data.pmra_kms**2 + self.data.pmdec_kms**2)
+        self.data[PM] = np.sqrt(self.data.pmra**2 + self.data.pmdec**2)
+        self.data[PM_G_LONGITUDE], self.data[PM_G_LATITUDE] = get_l_b_velocities(
             self.data.ra.values,
             self.data.dec.values,
             self.data.pmra.values,

@@ -37,6 +37,7 @@ def test_query_processor():
         "ipd_frac_multi_peak": None,
         "min_parallax": None,
         "max_parallax": None,
+        "parallax_error": None,
     }
     expected_query = """
                    SELECT tab.* FROM tab WHERE
