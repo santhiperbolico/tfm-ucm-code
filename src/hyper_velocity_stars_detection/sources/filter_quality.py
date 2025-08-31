@@ -176,6 +176,7 @@ GAIA_DR3_FIELDS = (
     QueryField("min_parallax", "parallax", FieldType.FILTERS, "gs"),
     QueryField("max_parallax", "parallax", FieldType.FILTERS, "ls"),
     QueryField("parallax_error", "parallax_error", FieldType.FILTERS, "ls"),
+    QueryField("radial_velocity", "radial_velocity", FieldType.FILTERS, "gs"),
 )
 
 GAIA_DR2_FIELDS = (

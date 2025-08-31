@@ -83,7 +83,7 @@ class DataSample1(DataSample):
 
 class DataSample2(DataSample):
     label = "df_c2"
-    description = ("Las estrellas con errores de paralaje y pm menores al 10%",)
+    description = "Las estrellas con errores de paralaje y pm menores al 10%"
 
     @staticmethod
     def get_sample(df_data: pd.DataFrame) -> np.ndarray:
@@ -386,7 +386,7 @@ class AstroMetricData:
             )
 
         logging.info("-- Descargando datos principales. Aplicando los siguientes:")
-        for key, value in filter_params:
+        for key, value in filter_params.items():
             logging.info("\t %s: %s" % (key, value))
 
         data = astro_object.download_data(

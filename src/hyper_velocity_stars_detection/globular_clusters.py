@@ -33,6 +33,7 @@ from hyper_velocity_stars_detection.sources.source import AstroMetricData, DataS
 from hyper_velocity_stars_detection.sources.xray_source import XRSourceData
 from hyper_velocity_stars_detection.tools.cluster_representations import (
     cluster_representation,
+    cmd_plot,
     cmd_with_cluster,
 )
 from hyper_velocity_stars_detection.variables_names import (
@@ -375,6 +376,7 @@ class GlobularClusterAnalysis:
 
     def plot_cluster(
         self,
+        sample_label: Optional[str] = None,
         highlight_stars: Optional[pd.DataFrame] = None,
         remove_noise: bool = False,
         random_state: int | None = None,
@@ -387,6 +389,9 @@ class GlobularClusterAnalysis:
 
         Parameters
         ----------
+        sample_label: Optional[str] = None.
+            Si se indica el nombre de la muestra a representar solo se pintará esa muestra,
+            ignorando el clustering realizado.
         highlight_stars: Optional[pd.DataFrame] = None
             Tabla con las estrellas que se quieren destacar junto con el cluster
         remove_noise: bool = False
@@ -404,10 +409,16 @@ class GlobularClusterAnalysis:
         ax: Axes
             Eje de la figura.
         """
-        df_gc = self.clustering_results.gc
-        if remove_noise:
-            df_gc = self.clustering_results.remove_outliers_gc(random_state=random_state)
-        df_source_x = self.xrsource.results
+        data_name = sample_label
+        if not data_name:
+            data_name = "df_c1"
+
+        df_gc = self.astro_data.get_data(data_name)
+        if isinstance(self.clustering_results, ClusteringResults) and not sample_label:
+            df_gc = self.clustering_results.gc
+            if remove_noise:
+                df_gc = self.clustering_results.remove_outliers_gc(random_state=random_state)
+        df_source_x = self.xrsource.data
         df_source_x = df_source_x[df_source_x.main_id == self.name]
         fig, ax = cluster_representation(
             df_gc=df_gc, df_highlights_stars=highlight_stars, df_source_x=df_source_x, **kwargs
@@ -424,6 +435,7 @@ class GlobularClusterAnalysis:
 
     def plot_cmd(
         self,
+        sample_label: Optional[str] = None,
         highlight_stars: Optional[pd.DataFrame] = None,
         path: Optional[str] = None,
         **kwargs,
@@ -433,6 +445,9 @@ class GlobularClusterAnalysis:
 
         Parameters
         ----------
+        sample_label: Optional[str] = None.
+            Si se indica el nombre de la muestra a representar solo se pintará esa muestra,
+            ignorando el clustering realizado.
         highlight_stars: Optional[pd.DataFrame] = None
             Tabla con las estrellas que se quieren destacar junto con el cluster
         path: Optional[str] =  None,
@@ -447,30 +462,53 @@ class GlobularClusterAnalysis:
         ax: Axes
             Eje de la gráfica.
         """
+        data_name = sample_label
+        if not data_name:
+            data_name = "df_c1"
 
-        if not isinstance(self.clustering_results, ClusteringResults):
-            raise RuntimeError("Genera un clustering antes de ejecutar este método.")
+        switcher_method = {"cmd": cmd_plot, "cmd_cluster": cmd_with_cluster}
+        main_method = "cmd"
+        message = (
+            "-- Genera un clustering si quieres distinguis las estrellas del objeto o no "
+            "selecciones muestra."
+        )
+        params = {"df_catalog": self.astro_data.get_data(data_name)}
 
-        fig, ax = cmd_with_cluster(
-            df_catalog=self.clustering_results.df_stars,
-            labels=self.clustering_results.labels,
-            **kwargs,
-        )
-        color_field = kwargs.get("color_field", BP_RP)
-        mag_field = kwargs.get("magnitud_field", G_MAG)
-        legend = kwargs.get("legend", False)
-        ax.scatter(
-            x=highlight_stars[color_field],
-            y=highlight_stars[mag_field],
-            s=20,
-            c="b",
-            marker="s",
-            label="Highlights Stars",
-        )
-        if legend:
-            plt.legend()
+        if isinstance(self.clustering_results, ClusteringResults) and not sample_label:
+            main_method = "cmd_cluster"
+            params = {
+                "df_catalog": self.clustering_results.df_stars,
+                "labels": self.clustering_results.labels,
+            }
+            message = "-- Generando el CMD con las estrellas seleccionadas del cluster."
+
+        logging.info(message)
+        fig, ax = switcher_method[main_method](**params, **kwargs)
+
+        if isinstance(highlight_stars, pd.DataFrame):
+            color_field = kwargs.get("color_field", BP_RP)
+            mag_field = kwargs.get("magnitud_field", G_MAG)
+            legend = kwargs.get("legend", False)
+            ax.scatter(
+                x=highlight_stars[color_field],
+                y=highlight_stars[mag_field],
+                s=20,
+                c="b",
+                marker="s",
+                label="Highlights Stars",
+            )
+            if legend:
+                plt.legend()
         ax.set_title(f"CMD {self.name}")
         if fig is not None and path is not None:
             filename = f"cmd_{self.astro_data.data_name}"
             StorageObjectFigures.save(path=os.path.join(path, filename), value=fig)
         return fig, ax
+
+    def describe(
+        self,
+        columns: Optional[list[str]] = None,
+    ) -> pd.DataFrame:
+        if columns is None:
+            columns = DEFAULT_COLS_CLUS
+        return self.clustering_results.gc[columns].describe()

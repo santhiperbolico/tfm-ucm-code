@@ -280,12 +280,12 @@ if __name__ == "__main__":
             )
 
             _ = project.plot_cluster(
+                random_state=123,
                 hvs_candidates_name="df_6_c1",
                 factor_sigma=1,
                 hvs_pm=150,
                 legend=True,
                 factor_size=50,
-                random_state=123,
             )
             _ = project.plot_cmd(
                 hvs_candidates_name="df_6_c1",
@@ -297,12 +297,12 @@ if __name__ == "__main__":
             )
 
             _ = project.plot_cluster(
+                random_state=123,
                 hvs_candidates_name="df_6_c1",
                 factor_sigma=2,
                 hvs_pm=150,
                 legend=True,
                 factor_size=50,
-                random_state=123,
             )
             files = [
                 "cluster_df_6_c1_hvs_150_sigma_1.png",

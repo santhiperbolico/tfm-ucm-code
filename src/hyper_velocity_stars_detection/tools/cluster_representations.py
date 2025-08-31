@@ -114,11 +114,12 @@ def cmd_plot(
     df_catalog: pd.DataFrame,
     df_isochrone: Optional[pd.DataFrame] = None,
     color_field: str = BP_RP,
-    magnitud_field: str = G_MAG,
+    mag_field: str = G_MAG,
     isochrone_distance_module: float = 0,
     isochrone_redding: float = 0,
     ax: Optional[plt.Axes] = None,
-) -> tuple[plt.Axes, plt.Figure]:
+    figsize: tuple[int, int] = (15, 6),
+) -> tuple[plt.Figure, plt.Axes]:
     """
     Función que genera la gráfica del Color Magnitud Diagram. S
     Parameters
@@ -129,7 +130,7 @@ def cmd_plot(
         Tabla con los datos de la isochrona.
     color_field: str
         Nombre del campo de color del CMD.
-    magnitud_field: str
+    mag_field: str
         Nombre del campo de la magnitud.
     isochrone_distance_module: float
         Módulo de distancia para la corrección de la isochrona.
@@ -138,19 +139,19 @@ def cmd_plot(
 
     Returns
     -------
-    ax: Axes
-        Eje de la gráfica.
     fig: Figure
         Figura con el CMD.
+    ax: Axes
+        Eje de la gráfica.
     """
 
     fig = None
     if ax is None:
-        fig, ax = plt.subplots(figsize=(15, 6))
+        fig, ax = plt.subplots(figsize=figsize)
     # Crear el scatter plot
     plt.scatter(
         x=df_catalog[color_field],
-        y=df_catalog[magnitud_field],
+        y=df_catalog[mag_field],
         s=10,
         c="k",
         edgecolor="none",
@@ -158,11 +159,11 @@ def cmd_plot(
     )
     if isinstance(df_isochrone, pd.DataFrame):
         df_is_fit = fit_isochrone(
-            df_isochrone, isochrone_distance_module, isochrone_redding, color_field, magnitud_field
+            df_isochrone, isochrone_distance_module, isochrone_redding, color_field, mag_field
         )
         plt.scatter(
             x=df_is_fit[color_field],
-            y=df_is_fit[magnitud_field],
+            y=df_is_fit[mag_field],
             s=10,
             c="b",
             edgecolor="none",
@@ -171,9 +172,9 @@ def cmd_plot(
 
     # Etiquetas de los ejes
     ax.set_xlabel(color_field)
-    ax.set_ylabel(magnitud_field)
+    ax.set_ylabel(mag_field)
     plt.gca().invert_yaxis()
-    return ax, fig
+    return fig, ax
 
 
 def cmd_with_cluster(
@@ -187,6 +188,7 @@ def cmd_with_cluster(
     clusters: Optional[int | list[int]] = None,
     ax: Optional[plt.Axes] = None,
     legend: bool = False,
+    figsize: tuple[int, int] = (15, 6),
 ) -> tuple[plt.Figure, plt.Axes]:
     """
     Función que genera la gráfica del Color Magnitud Diagram. S
@@ -218,7 +220,7 @@ def cmd_with_cluster(
     """
     fig = None
     if ax is None:
-        fig, ax = plt.subplots(figsize=(15, 6))
+        fig, ax = plt.subplots(figsize=figsize)
     ax.scatter(
         x=df_catalog[color_field],
         y=df_catalog[mag_field],
@@ -498,6 +500,7 @@ def cluster_representation(
     factor_size: int = 200,
     ax: Optional[plt.Axes] = None,
     legend: bool = True,
+    figsize: tuple[int, int] = (8, 5),
 ) -> tuple[plt.Figure, plt.Axes]:
     """
     Función que representa el cluster en coordenadas galacticas y con los vectores
@@ -530,7 +533,7 @@ def cluster_representation(
 
     fig = None
     if ax is None:
-        fig, ax = plt.subplots(figsize=(8, 5))
+        fig, ax = plt.subplots(figsize=figsize)
 
     mean_pm_l = df_gc[PM_G_LONGITUDE].mean()
     mean_pm_b = df_gc[PM_G_LATITUDE].mean()
