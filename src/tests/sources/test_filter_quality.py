@@ -35,7 +35,7 @@ def test_query_processor():
         "v_periods_used": 11,
         "ipd_gof_har_amp": None,
         "ipd_frac_multi_peak": None,
-        "min_parallax": None,
+        "min_parallax": 0,
         "max_parallax": None,
         "parallax_error": None,
     }

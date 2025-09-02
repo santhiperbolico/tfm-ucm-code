@@ -385,7 +385,7 @@ class AstroMetricData:
                 "El catalogo seleccionado no se corresponde con uno válido para" "astrometría."
             )
 
-        logging.info("-- Descargando datos principales. Aplicando los siguientes:")
+        logging.info("-- Descargando datos principales. Aplicando los siguientes filtros:")
         for key, value in filter_params.items():
             logging.info("\t %s: %s" % (key, value))
 
@@ -465,6 +465,36 @@ class AstroMetricData:
                 f"una muestra de: {list(ds.label for ds in self._data_samples)}"
             )
         return self.data[mask_data].copy()
+
+    def get_data_max_samples(self, max_sample: int) -> str:
+        """
+        Método que extrae una copia de los datos asociados a la muestra con un tamaño
+        máximo que no sobre pase max_sample. SI no hay ninguna que cumpla esa condición
+        devuelve la muestra con menor tamaño.
+
+        Parameters
+        ----------
+        max_sample: int
+            Volumen máximo de muestra.
+
+        Returns
+        -------
+        sample_label: str
+            Nombre de la muestra seleccionada.
+        """
+        size_valid_samples = np.zeros(len(self._data_samples))
+        size_samples = np.zeros(len(self._data_samples))
+        for pos, sample in enumerate(self._data_samples):
+            size = get_data_sample(self.data, sample.label, self._data_samples).sum()
+            size_samples[pos] = size
+            if size < max_sample:
+                size_valid_samples[pos] = size
+
+        pos = int(np.argmax(size_valid_samples))
+        if size_valid_samples.sum() == 0:
+            pos = int(np.argmin(size_samples))
+        sample_label = self._data_samples[pos].label
+        return sample_label
 
     def fix_parallax(self) -> None:
         """

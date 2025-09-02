@@ -10,6 +10,7 @@ from attr import attrs
 from hyper_velocity_stars_detection.globular_clusters import GlobularClusterAnalysis
 from hyper_velocity_stars_detection.sources.catalogs import GaiaDR3
 from hyper_velocity_stars_detection.sources.source import AstroObject
+from hyper_velocity_stars_detection.sources.utils import get_main_id, get_vizier_catalog
 
 
 class ProjectDontExist(Exception):
@@ -37,9 +38,8 @@ class DefaultParamsClusteringDetection:
 @attrs(auto_attribs=True)
 class Cluster:
     name: str
+    radius: float
     radio_scale: float
-    filter_parallax_min: Optional[float] = None
-    filter_parallax_max: Optional[float] = None
 
 
 def load_project(cluster_name: str, path: str, from_zip: bool = False) -> GlobularClusterAnalysis:
@@ -204,6 +204,113 @@ def download_astro_data(
             params_download.update(params_download_cluster)
         _ = download_object(**params_download)
     gc.collect()
+
+
+def read_harris_catalog() -> pd.DataFrame:
+    """
+    Función que lee "CATALOG OF PARAMETERS FOR MILKY WAY GLOBULAR CLUSTERS"
+    de Harris, W.E. 1996, AJ, 112, 1487
+
+    Returns
+    -------
+    df_catalog: pd.DataFrame
+        Datos del catálogo de Harris, W.E. 1996, AJ, 112, 1487
+    """
+    df_catalog = get_vizier_catalog("VII/202/catalog")[0]
+    df_catalog.ID = df_catalog.ID.str.lower()
+    return df_catalog
+
+
+def read_clusters_harris_catalog(
+    radius_scale: float = 1.0, radius_type: Optional[str] = None
+) -> list[Cluster]:
+    """
+    Función que lee "CATALOG OF PARAMETERS FOR MILKY WAY GLOBULAR CLUSTERS"
+    de Harris, W.E. 1996, AJ, 112, 1487 devolviendo una lista de clusters.
+
+    Parameters
+    ----------
+    radius_scale: float = 1.0
+        Escala del radio de búsqueda. Si radius type es None se usa el campo de visión.
+    radius_type: Optional[str] = None
+        Indica que tipo de radio se quiere usar, radio_core "r_c" o halfĺight readio "r_l". Si
+        es None se usa el camp de visión ocupado por el cluster.
+
+    Returns
+    -------
+    clusters_list: list[Cluster]
+        Lista de objetos cluster.
+    """
+    df_catalog = read_harris_catalog()
+    clusters_list = []
+    if radius_type:
+        if radius_type not in ("r_c", "r_l"):
+            raise ValueError("No está implementado el radio %s, usa 'r_c' o 'r_l'" % radius_type)
+    for index in range(df_catalog.shape[0]):
+        row_cluster = df_catalog.loc[index]
+        name = row_cluster.ID
+        radius = None
+        if radius_type:
+            # El dato debe de estar en grados.
+            radius = row_cluster[radius_type] * radius_scale / 60
+        cluster = Cluster(name=name, radius=radius, radio_scale=radius_scale)
+        clusters_list.append(cluster)
+    return clusters_list
+
+
+def read_baumgardt_catalog() -> pd.DataFrame:
+    """
+    Función que lee "Galactic GC mean proper motions & velocities (Baumgardt+, 2019)"
+    de Baumgardt, H., Hilker, M., Sollima, A., & Bellini, A. (2019). Mean proper motions,
+    space orbits, and velocity dispersion profiles of Galactic globular clusters derived
+    from Gaia DR2 data. Monthly Notices of the Royal Astronomical Society, 482(4),
+    5138-5155.
+
+    Returns
+    -------
+    clusters_dr2: pd.DataFrame
+        Datos del catálogo con datos de GaiaDR2.
+    """
+    clusters_dr2 = get_vizier_catalog(
+        catalog="J/MNRAS/482/5138",
+        columns=[
+            "Name",
+            "Rsun",
+            "e_Rsun",
+            "pmRA*",
+            "e_pmRA*",
+            "pmDE",
+            "e_pmDE",
+            "RV",
+            "e_RV",
+            "rho",
+        ],
+    )[0]
+
+    clusters_dr2.Name = clusters_dr2.Name.str.lower()
+    clusters_dr2["parallax"] = 1 / clusters_dr2.Rsun
+    clusters_dr2["e_parallax"] = (
+        1 / (clusters_dr2.Rsun - clusters_dr2.e_Rsun)
+        - 1 / (clusters_dr2.Rsun + clusters_dr2.e_Rsun)
+    ) / 2
+    clusters_dr2 = clusters_dr2[
+        [
+            "Name",
+            "parallax",
+            "e_parallax",
+            "pmRA_",
+            "e_pmRA_",
+            "pmDE",
+            "e_pmDE",
+            "RV",
+            "e_RV",
+            "rho",
+            "Rsun",
+            "e_Rsun",
+        ]
+    ]
+    clusters_dr2["MAIN_ID"] = clusters_dr2["Name"].apply(get_main_id)
+    return clusters_dr2
 
 
 def read_catalog_file(filepath: str) -> list[Cluster]:

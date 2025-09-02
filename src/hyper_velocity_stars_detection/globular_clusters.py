@@ -29,7 +29,7 @@ from hyper_velocity_stars_detection.default_variables import (
     MAX_CLUSTER_DEFAULT,
     MAX_SAMPLE_OPTIMIZE,
 )
-from hyper_velocity_stars_detection.sources.source import AstroMetricData, DataSample1
+from hyper_velocity_stars_detection.sources.source import AstroMetricData
 from hyper_velocity_stars_detection.sources.xray_source import XRSourceData
 from hyper_velocity_stars_detection.tools.cluster_representations import (
     cluster_representation,
@@ -93,18 +93,15 @@ def cluster_detection(
     if columns_to_clus is None:
         columns_to_clus = DEFAULT_COLS_CLUS
 
-    mask_nan = df_data[columns_to_clus].isna().any(axis=1).values
-    df_stars = df_data.loc[~mask_nan, :]
-
     clustering_best = ClusteringDetection.from_cluster_params(
         cluster_method=cluster_method,
         cluster_params=cluster_params,
         scaler_method=scaler_method,
         noise_method=noise_method,
     )
-    clustering_best.fit(df_stars[columns_to_clus])
+    clustering_best.fit(df_data[columns_to_clus])
     clustering_results = ClusteringResults(
-        df_stars=df_stars,
+        df_stars=df_data,
         columns=columns,
         columns_to_clus=columns_to_clus,
         clustering=clustering_best,
@@ -112,7 +109,7 @@ def cluster_detection(
     )
     clustering_results.set_main_label(
         main_label=None,
-        cluster_data=df_stars[columns_to_clus],
+        cluster_data=df_data[columns_to_clus],
         reference_cluster=reference_cluster,
         group_labels=group_labels,
     )
@@ -273,7 +270,8 @@ class GlobularClusterAnalysis:
         variables_columns: Optional[list[str]] = None,
         max_cluster: int = MAX_CLUSTER_DEFAULT,
         n_trials: int = DEFAULT_ITERATIONS,
-        sample_label: str = DataSample1.label,
+        sample_label: Optional[str] = None,
+        max_stars_to_clus: int = MAX_SAMPLE_OPTIMIZE,
         reference_cluster: Optional[pd.Series] = None,
         params_methods: ParamsOptimizator = DEFAULT_PARAMS_OPTIMIZATOR,
         group_labels: bool = False,
@@ -292,8 +290,11 @@ class GlobularClusterAnalysis:
             Número máximo de clusters.
         n_trials: int = 100,
             Número de intentos en la optimización.
-        sample_label:str,
+        sample_label: Optional[str] = None,
             Nombre del astro data que se quiere utilizar.
+        max_stars_to_clus: int = MAX_SAMPLE_OPTIMIZE,
+            Si sample_label es None selecciona la muestra con mayor muestra que no sobrepase
+            max_stars_to_clus.
         reference_cluster: Optional[pd.Series] = None
             Datos de refrencia para buscar el cluster que más se aproxime a estos datos.
         params_methods: ParamsOptimizator = DEFAULT_PARAMS_OPTIMIZATOR,
@@ -311,14 +312,17 @@ class GlobularClusterAnalysis:
         if variables_columns is None:
             variables_columns = DEFAULT_COLS_CLUS
 
+        if sample_label is None:
+            sample_label = self.astro_data.get_data_max_samples(max_stars_to_clus)
+
         df_data = self.astro_data.get_data(sample_label)
         mask_nan = df_data[variables_columns].isna().any(axis=1).values
         df_stars = df_data.loc[~mask_nan, :]
 
         df_stars_to_clus = df_stars.copy()
-        if df_stars_to_clus.shape[0] > MAX_SAMPLE_OPTIMIZE:
+        if df_stars_to_clus.shape[0] > max_stars_to_clus:
             df_stars_to_clus = df_stars_to_clus.sort_values(by=ERROR_COLUMNS, ascending=True).iloc[
-                :MAX_SAMPLE_OPTIMIZE
+                :max_stars_to_clus
             ]
 
         objective = params_methods.get_objective_function(
@@ -348,7 +352,7 @@ class GlobularClusterAnalysis:
         scaler_method = cluster_params.pop("scaler_method", None)
         noise_method = cluster_params.pop("noise_method", None)
         self.clustering_results = cluster_detection(
-            df_data=df_data,
+            df_data=df_stars_to_clus,
             cluster_method=best_method.cluster_method,
             cluster_params=cluster_params,
             scaler_method=scaler_method,

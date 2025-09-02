@@ -312,13 +312,6 @@ class ClusteringResults:
     def __attrs_post_init__(self):
         if self.main_label is None:
             self.set_main_label()
-        parallax_field = "parallax"
-        if "parallax_corrected" in self.df_stars.columns:
-            parallax_field = "parallax_corrected"
-        if parallax_field in self.df_stars.columns:
-            mask_parallax = self.df_stars[parallax_field] > 0
-            self.df_stars = self.df_stars[mask_parallax].reset_index(drop=True)
-            self.clustering.labels_ = self.clustering.labels_[mask_parallax]
 
     def __str__(self) -> str:
         n_clusters_ = len(set(self.labels)) - (1 if -1 in self.labels else 0)
