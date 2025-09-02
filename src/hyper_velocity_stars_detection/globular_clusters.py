@@ -152,6 +152,15 @@ class GlobularClusterAnalysis:
     def name(self) -> str:
         return self.astro_data.astro_object.main_id
 
+    @property
+    def df_stars(self) -> pd.DataFrame:
+        if isinstance(self.clustering_results, ClusteringResults):
+            return self.clustering_results.gc
+        raise ValueError(
+            "No se han detectado estrellas del cluster, asegurate de haber "
+            "ejecutado el clustering."
+        )
+
     @classmethod
     def load_globular_cluster(
         cls,
