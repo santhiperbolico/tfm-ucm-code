@@ -1,10 +1,13 @@
 import logging
 import os
+from tempfile import TemporaryDirectory
 
 from google.cloud import storage
 
 from hyper_velocity_stars_detection.globular_clusters import GlobularClusterAnalysis
 from hyper_velocity_stars_detection.jobs.utils import ProjectDontExist
+from hyper_velocity_stars_detection.sources.utils import get_main_id
+from hyper_velocity_stars_detection.variables_names import GLOBULAR_CLUSTER_ANALYSIS
 
 
 def upload_folder_to_gcs(project_id, bucket_name, temp_path, destination_folder):
@@ -72,7 +75,7 @@ def download_from_gcs(project_id: str, bucket_name: str, file_path: str, path: s
     return local_path
 
 
-def load_project(
+def load_globular_cluster(
     cluster_name: str, project_id: str, bucket_name: str, path: str
 ) -> GlobularClusterAnalysis:
     """
@@ -87,23 +90,26 @@ def load_project(
     bucket_name: str
         Nombre del bucket de Storage.
     path: str
-        Ruta donde queremos guardar los datos.
+        Directorio donde se encuentra el objeto en storage.
 
     Returns
     -------
-    project: GlobularClusterAnalysis
+    gc_object: GlobularClusterAnalysis
         Proyecto donde se guardan los resultados.
     """
     client = storage.Client(project=project_id)
     bucket = client.bucket(bucket_name)
+    main_id = get_main_id(cluster_name)
 
-    logging.info(f"Procesando elemento {cluster_name}")
-
-    file_path = f"{cluster_name}.zip"
+    logging.info(f"Cargando objeto {main_id}")
+    file_name = f"{GLOBULAR_CLUSTER_ANALYSIS}_{main_id}.zip"
+    file_path = os.path.join(path, file_name)
     blob = bucket.blob(blob_name=file_path)
     if blob.exists():
-        blob.download_to_filename(os.path.join(path, file_path))
-        project = GlobularClusterAnalysis.load(path)
-        return project
+        with TemporaryDirectory() as temp_path:
+            temp_file = os.path.join(temp_path, file_name)
+            blob.download_to_filename(temp_file)
+            gc_object = GlobularClusterAnalysis.load(temp_file)
+        return gc_object
 
     raise ProjectDontExist("No hay datos descargados del proyecto")

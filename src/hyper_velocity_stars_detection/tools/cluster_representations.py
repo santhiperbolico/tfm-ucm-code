@@ -1,6 +1,7 @@
 import logging
 from typing import Optional
 
+import astropy.units as u
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -534,45 +535,70 @@ def cluster_representation(
     fig = None
     if ax is None:
         fig, ax = plt.subplots(figsize=figsize)
+        is_wcs = False
+    else:
+        # Heurística sencilla para saber si es un eje WCS
+        is_wcs = hasattr(ax, "get_transform") and hasattr(ax, "coords")
+
+    tr = ax.transData
+    if is_wcs:
+        tr = ax.get_transform("galactic")
+        lon = ax.coords[0]
+        lat = ax.coords[1]
+        lon.set_format_unit(u.deg, decimal=True)
+        lat.set_format_unit(u.deg, decimal=True)
+        lon.set_axislabel("l (Galactic Longitude)")
+        lat.set_axislabel("b (Galactic Latitude)")
 
     mean_pm_l = df_gc[PM_G_LONGITUDE].mean()
     mean_pm_b = df_gc[PM_G_LATITUDE].mean()
 
-    ax.scatter(df_gc[G_LONGITUDE], df_gc[G_LATITUDE], s=1, color="grey", alpha=0.5)
+    ax.scatter(
+        df_gc[G_LONGITUDE] * u.deg,
+        df_gc[G_LATITUDE] * u.deg,
+        s=1,
+        color="grey",
+        alpha=0.5,
+        transform=tr,
+    )
     ax.quiver(
-        df_gc[G_LONGITUDE],
-        df_gc[G_LATITUDE],
+        df_gc[G_LONGITUDE] * u.deg,
+        df_gc[G_LATITUDE] * u.deg,
         (df_gc[PM_G_LONGITUDE] - mean_pm_l) / factor_size,
         (df_gc[PM_G_LATITUDE] - mean_pm_b) / factor_size,
         color="grey",
         scale=5,
         width=0.003,
+        transform=tr,
     )
 
     if not df_highlights_stars.empty:
         ax.quiver(
-            df_highlights_stars[G_LONGITUDE],
-            df_highlights_stars[G_LATITUDE],
+            df_highlights_stars[G_LONGITUDE] * u.deg,
+            df_highlights_stars[G_LATITUDE] * u.deg,
             (df_highlights_stars[PM_G_LONGITUDE] - mean_pm_l) / factor_size,
             (df_highlights_stars[PM_G_LATITUDE] - mean_pm_b) / factor_size,
             color="blue",
             scale=5,
             width=0.003,
             label="Pre-selected Stars",
+            transform=tr,
         )
 
     if isinstance(df_source_x, pd.DataFrame):
         ax.scatter(
-            df_source_x.lii.values,
-            df_source_x.bii.values,
+            df_source_x.lii.values * u.deg,
+            df_source_x.bii.values * u.deg,
             marker="s",
             s=20,
             color="k",
             label="XR_Source",
+            transform=tr,
         )
 
-    ax.set_xlabel("l (Galactic Longitude)")
-    ax.set_ylabel("b (Galactic Latitude)")
+    if not is_wcs:
+        ax.set_xlabel("l (Galactic Longitude)")
+        ax.set_ylabel("b (Galactic Latitude)")
     if legend:
         ax.legend()
     return fig, ax

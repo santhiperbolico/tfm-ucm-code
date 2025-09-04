@@ -137,7 +137,7 @@ class DataSample3(DataSample):
 
 class DataSample4(DataSample):
     label = "df_c4"
-    description = "Las estrellas con un error de paralaje menor del 10% y de pm menores al 20%."
+    description = "Las estrellas con un error de paralaje menor del 10% y de pm menores al 30%."
 
     @staticmethod
     def get_sample(df_data: pd.DataFrame) -> np.ndarray:
