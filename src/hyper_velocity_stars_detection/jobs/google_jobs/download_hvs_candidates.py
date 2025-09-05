@@ -97,8 +97,9 @@ if __name__ == "__main__":
     cluster_dr2 = read_baumgardt_catalog()
     project_id = os.getenv("PROJECT_ID")
     bucket_name = os.getenv("BUCKET")
+    init_pos = args.init_pos
 
-    for cluster in tqdm(selected_clusters, desc="Procesando elementos", unit="item"):
+    for cluster in tqdm(selected_clusters[init_pos:], desc="Procesando elementos", unit="item"):
         logging.info(f"Procesando elemento {cluster.name}")
         astro_data = None
         try:
