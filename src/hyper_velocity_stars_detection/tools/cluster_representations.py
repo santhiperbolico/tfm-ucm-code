@@ -254,10 +254,9 @@ def cmd_with_cluster(
         ax.scatter(
             x=df_is_fit[color_field],
             y=df_is_fit[mag_field],
-            s=10,
-            c="b",
+            s=15,
             edgecolor="none",
-            alpha=0.5,
+            label="Isocrona",
         )
 
     # Etiquetas de los ejes

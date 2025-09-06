@@ -258,6 +258,43 @@ def read_clusters_harris_catalog(
     return clusters_list
 
 
+def read_mclaughlin_catalog() -> pd.DataFrame:
+    """
+    Función que descarga lso datos del catálogo J/ApJS/161/304
+    con las estimaciones de masa y luminosidad de clusters globulares.
+
+    Returns
+    -------
+    clusters_ml: Catalogo con lso datos de masa, luminosidad y ratio de masa luminosidad.
+        - SName: Nombre del cluster según SIMBAD.
+        - Mtot: Logaritmo de la masa del cluster en masas solares.
+        - e_Mtot: Error en la estimación de la masa.
+        - Ltot: Logaritmo de la luminosidad del cluster en luminosidad solar.
+        - e_Ltot: Error en la estimación de la luminosidad.
+        - M_L: Ratio de Masa - Luminosidad_V sintetizada.
+        - e_M_L: Error en el ratio de Masa - Luminosidad_V.
+    """
+    catalog1 = "J/ApJS/161/304/clusters"
+    catalog2 = "J/ApJS/161/304/models"
+
+    catalogs = get_vizier_catalog([catalog1, catalog2])
+    clusters_ml = catalogs[0]
+    tbl_2 = catalogs[1]
+
+    properties = ["Ltot", "Mtot", "M_L"]
+    for prop in properties:
+        df_p = tbl_2[["Cluster", prop, f"e_{prop}", f"E_{prop}"]].sort_values(
+            ["Cluster", f"e_{prop}", f"E_{prop}"]
+        )
+        clusters_ml = pd.merge(
+            clusters_ml, df_p.groupby("Cluster").first().reset_index(), on="Cluster"
+        )
+
+    clusters_ml.SName = clusters_ml.SName.str.lower()
+    clusters_ml["Name"] = clusters_ml.SName.apply(get_main_id)
+    return clusters_ml
+
+
 def read_baumgardt_catalog() -> pd.DataFrame:
     """
     Función que lee "Galactic GC mean proper motions & velocities (Baumgardt+, 2019)"

@@ -6,8 +6,12 @@ from google.cloud import storage
 
 from hyper_velocity_stars_detection.globular_clusters import GlobularClusterAnalysis
 from hyper_velocity_stars_detection.jobs.utils import ProjectDontExist
+from hyper_velocity_stars_detection.sources.source import AstroMetricData
 from hyper_velocity_stars_detection.sources.utils import get_main_id
-from hyper_velocity_stars_detection.variables_names import GLOBULAR_CLUSTER_ANALYSIS
+from hyper_velocity_stars_detection.variables_names import (
+    ASTRO_OBJECT_DATA,
+    GLOBULAR_CLUSTER_ANALYSIS,
+)
 
 
 def upload_folder_to_gcs(project_id, bucket_name, temp_path, destination_folder):
@@ -113,3 +117,44 @@ def load_globular_cluster(
         return gc_object
 
     raise ProjectDontExist("No hay datos descargados del proyecto")
+
+
+def load_astrometric_data(
+    cluster_name: str, catalog_name: str, project_id: str, bucket_name: str, path: str, r: int
+) -> AstroMetricData:
+    """
+    Función que descarga o carga desde la cache los datos limpios en un proyecto.
+
+    Parameters
+    ----------
+    cluster_name: str,
+        Nombre del cluster
+    catalog_name: str
+        Nombre del catálogo usado
+    project_id: str
+        ID del proyecto de GCP
+    bucket_name: str
+        Nombre del bucket de Storage.
+    path: str
+        Directorio donde se encuentra el objeto en storage.
+
+    Returns
+    -------
+    astro_data: AstroMetricData
+        Datos astrométricos.
+    """
+    client = storage.Client(project=project_id)
+    bucket = client.bucket(bucket_name)
+
+    logging.info(f"Cargando objeto {cluster_name}")
+    file_name = f"{ASTRO_OBJECT_DATA}_{catalog_name}_{cluster_name}_r_{r}.zip"
+    file_path = os.path.join(path, file_name)
+    blob = bucket.blob(blob_name=file_path)
+    if blob.exists():
+        with TemporaryDirectory() as temp_path:
+            temp_file = os.path.join(temp_path, file_name)
+            blob.download_to_filename(temp_file)
+            astro_data = AstroMetricData.load(temp_file)
+        return astro_data
+
+    raise ProjectDontExist("No hay datos astrométricos descargados")

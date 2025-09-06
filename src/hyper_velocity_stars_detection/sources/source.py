@@ -339,7 +339,8 @@ class AstroMetricData:
         Nombre asociado al conjunto de muestras de los datos asociados.
         """
         return (
-            f"{self.catalog.catalog_name}_{self.astro_object.name}_" f"r_{int(self.radio_scale)}"
+            f"{self.catalog.catalog_name}_{self.astro_object.main_id}_"
+            f"r_{int(self.radio_scale)}"
         )
 
     @classmethod

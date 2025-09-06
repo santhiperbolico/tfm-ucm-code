@@ -32,7 +32,7 @@ def get_vizier_catalog(
 
     Parameters
     ----------
-    catalog: str
+    catalog: str | list[str]
         Código o lista de códigos a descargar
     columns: Optional[list[str]]= None
         Lista de columnas a descargar, se aplicará a todos los catálogos seleccionados.
