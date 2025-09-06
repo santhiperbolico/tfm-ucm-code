@@ -585,15 +585,16 @@ def cluster_representation(
         )
 
     if isinstance(df_source_x, pd.DataFrame):
-        ax.scatter(
-            df_source_x.lii.values * u.deg,
-            df_source_x.bii.values * u.deg,
-            marker="s",
-            s=20,
-            color="k",
-            label="XR_Source",
-            transform=tr,
-        )
+        if not df_source_x.empty:
+            ax.scatter(
+                df_source_x.lii.values * u.deg,
+                df_source_x.bii.values * u.deg,
+                marker="s",
+                s=20,
+                color="k",
+                label="XR_Source",
+                transform=tr,
+            )
 
     if not is_wcs:
         ax.set_xlabel("l (Galactic Longitude)")
