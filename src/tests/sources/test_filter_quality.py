@@ -35,9 +35,10 @@ def test_query_processor():
         "v_periods_used": 11,
         "ipd_gof_har_amp": None,
         "ipd_frac_multi_peak": None,
-        "min_parallax": 0,
+        "min_parallax": None,
         "max_parallax": None,
         "parallax_error": None,
+        "radial_velocity": None,
     }
     expected_query = """
                    SELECT tab.* FROM tab WHERE

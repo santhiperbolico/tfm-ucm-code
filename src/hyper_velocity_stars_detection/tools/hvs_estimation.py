@@ -4,18 +4,45 @@ import numpy as np
 import pandas as pd
 
 from hyper_velocity_stars_detection.globular_clusters import GlobularClusterAnalysis
-from hyper_velocity_stars_detection.sources.source import AstroMetricData, DataSample4
+from hyper_velocity_stars_detection.sources.source import AstroMetricData, DataSample2
 
 
 def get_hvs_candidates(
     gc_object: GlobularClusterAnalysis,
     v_kms_limit: float,
     astrometric_data: Optional[AstroMetricData] = None,
-    sample_label: str = DataSample4.label,
+    sample_label: str = DataSample2.label,
     random_state: Optional[int] = None,
     ipd_gof_harmonic_amplitude: Optional[float] = 0.15,
     ipd_frac_multi_peak: Optional[int] = 10,
 ) -> pd.DataFrame:
+    """
+    Función que genera el DataFrame con los candidatos a HVS de los datos de astrometric_data
+    teniendo en cuenta el paralaje y velocidades del cúmulo globular.
+
+    Parameters
+    ----------
+    gc_object: GlobularClusterAnalysis,
+        Datos de cúmulo globular.
+    v_kms_limit: float,
+        Límite usado para determinar si una estrella es HVS.
+    astrometric_data: Optional[AstroMetricData] = None,
+        Datos astrométricos de donde vamos a extraer los candidatos a HVS. Si no se indica,
+        se utiliza los datos astrométricos de gc_object.
+    sample_label: str = DataSample2.label,
+        Etiqueta de la muestra utilizada para sacar lso candidatos.
+    random_state: Optional[int] = None,
+        Semilla en el proceso de eliminación de outliers del cúmulo principal.
+    ipd_gof_harmonic_amplitude: Optional[float] = 0.15,
+        Parámetro máximo de ipd_gof_harmonic_amplitude.
+    ipd_frac_multi_peak: Optional[int] = 10,
+        Parámetro máximo de ipd_frac_multi_peak.
+
+    Returns
+    -------
+    df_candidates: pd.DataFrame
+        DataFrame de los candidatos a HVS.
+    """
     if astrometric_data is None:
         astrometric_data = gc_object.astro_data
     df_gc = gc_object.clustering_results.remove_outliers_gc(random_state=random_state).copy()
