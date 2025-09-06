@@ -226,10 +226,10 @@ if __name__ == "__main__":
 
     with TemporaryDirectory() as temp:
         for cluster_name in tqdm(
-            selected_clusters[:2],
+            selected_clusters,
             desc="Procesando clusters",
             unit="item",
-            total=len(selected_clusters[:2]),
+            total=len(selected_clusters),
         ):
             gc_object = extract_globular_cluster(cluster_name, selected_clusters)
             if gc_object is not None:
