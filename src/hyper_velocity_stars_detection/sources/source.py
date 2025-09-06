@@ -83,7 +83,7 @@ class DataSample1(DataSample):
 
 class DataSample2(DataSample):
     label = "df_c2"
-    description = ("Las estrellas con errores de paralaje y pm menores al 10%",)
+    description = "Las estrellas con errores de paralaje y pm menores al 10%"
 
     @staticmethod
     def get_sample(df_data: pd.DataFrame) -> np.ndarray:
@@ -137,7 +137,7 @@ class DataSample3(DataSample):
 
 class DataSample4(DataSample):
     label = "df_c4"
-    description = "Las estrellas con un error de paralaje menor del 10% y de pm menores al 20%."
+    description = "Las estrellas con un error de paralaje menor del 10% y de pm menores al 30%."
 
     @staticmethod
     def get_sample(df_data: pd.DataFrame) -> np.ndarray:
@@ -339,7 +339,8 @@ class AstroMetricData:
         Nombre asociado al conjunto de muestras de los datos asociados.
         """
         return (
-            f"{self.catalog.catalog_name}_{self.astro_object.name}_" f"r_{int(self.radio_scale)}"
+            f"{self.catalog.catalog_name}_{self.astro_object.main_id}_"
+            f"r_{int(self.radio_scale)}"
         )
 
     @classmethod
@@ -385,8 +386,8 @@ class AstroMetricData:
                 "El catalogo seleccionado no se corresponde con uno válido para" "astrometría."
             )
 
-        logging.info("-- Descargando datos principales. Aplicando los siguientes:")
-        for key, value in filter_params:
+        logging.info("-- Descargando datos principales. Aplicando los siguientes filtros:")
+        for key, value in filter_params.items():
             logging.info("\t %s: %s" % (key, value))
 
         data = astro_object.download_data(
@@ -465,6 +466,36 @@ class AstroMetricData:
                 f"una muestra de: {list(ds.label for ds in self._data_samples)}"
             )
         return self.data[mask_data].copy()
+
+    def get_data_max_samples(self, max_sample: int) -> str:
+        """
+        Método que extrae una copia de los datos asociados a la muestra con un tamaño
+        máximo que no sobre pase max_sample. SI no hay ninguna que cumpla esa condición
+        devuelve la muestra con menor tamaño.
+
+        Parameters
+        ----------
+        max_sample: int
+            Volumen máximo de muestra.
+
+        Returns
+        -------
+        sample_label: str
+            Nombre de la muestra seleccionada.
+        """
+        size_valid_samples = np.zeros(len(self._data_samples))
+        size_samples = np.zeros(len(self._data_samples))
+        for pos, sample in enumerate(self._data_samples):
+            size = get_data_sample(self.data, sample.label, self._data_samples).sum()
+            size_samples[pos] = size
+            if size < max_sample:
+                size_valid_samples[pos] = size
+
+        pos = int(np.argmax(size_valid_samples))
+        if size_valid_samples.sum() == 0:
+            pos = int(np.argmin(size_samples))
+        sample_label = self._data_samples[pos].label
+        return sample_label
 
     def fix_parallax(self) -> None:
         """

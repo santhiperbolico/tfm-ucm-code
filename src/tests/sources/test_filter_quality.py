@@ -38,6 +38,7 @@ def test_query_processor():
         "min_parallax": None,
         "max_parallax": None,
         "parallax_error": None,
+        "radial_velocity": None,
     }
     expected_query = """
                    SELECT tab.* FROM tab WHERE

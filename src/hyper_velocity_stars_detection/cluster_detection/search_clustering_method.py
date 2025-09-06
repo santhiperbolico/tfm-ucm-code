@@ -258,13 +258,13 @@ DEFAULT_PARAMS_OPTIMIZATOR = ParamsOptimizator(
     [
         ParamsDistribution(
             "dbscan",
-            ["standard"],
+            ["standard", "minmax", None],
             [None],
             None,
         ),
         ParamsDistribution(
             "hdbscan",
-            ["standard"],
+            ["standard", "minmax", None],
             [None],
             None,
         ),

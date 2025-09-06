@@ -312,13 +312,6 @@ class ClusteringResults:
     def __attrs_post_init__(self):
         if self.main_label is None:
             self.set_main_label()
-        parallax_field = "parallax"
-        if "parallax_corrected" in self.df_stars.columns:
-            parallax_field = "parallax_corrected"
-        if parallax_field in self.df_stars.columns:
-            mask_parallax = self.df_stars[parallax_field] > 0
-            self.df_stars = self.df_stars[mask_parallax].reset_index(drop=True)
-            self.clustering.labels_ = self.clustering.labels_[mask_parallax]
 
     def __str__(self) -> str:
         n_clusters_ = len(set(self.labels)) - (1 if -1 in self.labels else 0)
@@ -485,43 +478,3 @@ class ClusteringResults:
         path_name = os.path.join(path, filepath)
         params = cls._storage.load(path_name)
         return cls(**params)
-
-    def selected_hvs(
-        self,
-        df_hvs_candidates: pd.DataFrame,
-        factor_sigma: float = 1.0,
-        hvs_pm: float = 150,
-        parallax_corrected: bool = True,
-        random_state: int | None = None,
-    ) -> pd.DataFrame:
-        """
-        Función que filtra y selecciona las candidatas a HVS.
-
-        Parameters
-        ----------
-        df_hvs_candidates: pd.DataFrame
-           Catálogo de estrellas donde se quiere buscar las HVS
-        factor_sigma: float, default 1
-           Proporción del sigma del paralaje que se quiere usar para seleccionar las HVS
-        hvs_pm: float, default
-           Movimiento propio mínimo en km por segundo en la selección de HVS
-
-        Returns
-        -------
-        selected: pd.DataFrame
-            Estrellas seleccionadas
-        """
-        gc = self.remove_outliers_gc(random_state)
-        parallax_col = "parallax_corrected" if parallax_corrected else "parallax"
-        parallax_range = [
-            gc[parallax_col].mean() - factor_sigma * gc[parallax_col].std(),
-            gc[parallax_col].mean() + factor_sigma * gc[parallax_col].std(),
-        ]
-
-        mask_p = (df_hvs_candidates[parallax_col] > parallax_range[0]) & (
-            df_hvs_candidates[parallax_col] < parallax_range[1]
-        )
-
-        pm_candidates = df_hvs_candidates.pm_kms - gc.pm_kms.mean()
-        mask_hvs = (pm_candidates > hvs_pm) & mask_p
-        return df_hvs_candidates[mask_hvs]

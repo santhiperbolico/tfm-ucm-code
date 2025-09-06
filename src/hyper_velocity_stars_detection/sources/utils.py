@@ -10,6 +10,7 @@ from astropy.units import Unit
 from astroquery.gaia import Gaia
 from astroquery.heasarc import Heasarc
 from astroquery.simbad import Simbad
+from astroquery.vizier import Vizier
 from zero_point import zpt
 
 HEASARC_COLUMNS = [
@@ -20,6 +21,37 @@ HEASARC_COLUMNS = [
     "HALF_LIGHT_RADIUS",
     "CENTRAL_CONCENTRATION",
 ]
+
+
+def get_vizier_catalog(
+    catalog: str | list[str], columns: Optional[list[str]] = None
+) -> list[pd.DataFrame]:
+    """
+    Función que descarga un catálogo a través de Vizier introduciéndo el código
+    del catálogo.
+
+    Parameters
+    ----------
+    catalog: str | list[str]
+        Código o lista de códigos a descargar
+    columns: Optional[list[str]]= None
+        Lista de columnas a descargar, se aplicará a todos los catálogos seleccionados.
+
+    Returns
+    -------
+    df_catalogs: list[pd.DataFrame]
+        Lista de catálogos descargados
+    """
+    list_catalog = catalog
+    if isinstance(catalog, str):
+        list_catalog = [catalog]
+
+    v_catalog = Vizier(columns=["**"])
+    if isinstance(columns, list):
+        v_catalog = Vizier(columns=columns)
+    v_catalog.ROW_LIMIT = -1
+    result = v_catalog.get_catalogs(list_catalog)
+    return [table_data.to_pandas() for table_data in result]
 
 
 def get_main_id(name: str) -> str | None:

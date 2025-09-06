@@ -1,6 +1,7 @@
 import logging
 from typing import Optional
 
+import astropy.units as u
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -114,11 +115,12 @@ def cmd_plot(
     df_catalog: pd.DataFrame,
     df_isochrone: Optional[pd.DataFrame] = None,
     color_field: str = BP_RP,
-    magnitud_field: str = G_MAG,
+    mag_field: str = G_MAG,
     isochrone_distance_module: float = 0,
     isochrone_redding: float = 0,
     ax: Optional[plt.Axes] = None,
-) -> tuple[plt.Axes, plt.Figure]:
+    figsize: tuple[int, int] = (15, 6),
+) -> tuple[plt.Figure, plt.Axes]:
     """
     Función que genera la gráfica del Color Magnitud Diagram. S
     Parameters
@@ -129,7 +131,7 @@ def cmd_plot(
         Tabla con los datos de la isochrona.
     color_field: str
         Nombre del campo de color del CMD.
-    magnitud_field: str
+    mag_field: str
         Nombre del campo de la magnitud.
     isochrone_distance_module: float
         Módulo de distancia para la corrección de la isochrona.
@@ -138,19 +140,19 @@ def cmd_plot(
 
     Returns
     -------
-    ax: Axes
-        Eje de la gráfica.
     fig: Figure
         Figura con el CMD.
+    ax: Axes
+        Eje de la gráfica.
     """
 
     fig = None
     if ax is None:
-        fig, ax = plt.subplots(figsize=(15, 6))
+        fig, ax = plt.subplots(figsize=figsize)
     # Crear el scatter plot
     plt.scatter(
         x=df_catalog[color_field],
-        y=df_catalog[magnitud_field],
+        y=df_catalog[mag_field],
         s=10,
         c="k",
         edgecolor="none",
@@ -158,11 +160,11 @@ def cmd_plot(
     )
     if isinstance(df_isochrone, pd.DataFrame):
         df_is_fit = fit_isochrone(
-            df_isochrone, isochrone_distance_module, isochrone_redding, color_field, magnitud_field
+            df_isochrone, isochrone_distance_module, isochrone_redding, color_field, mag_field
         )
         plt.scatter(
             x=df_is_fit[color_field],
-            y=df_is_fit[magnitud_field],
+            y=df_is_fit[mag_field],
             s=10,
             c="b",
             edgecolor="none",
@@ -171,9 +173,9 @@ def cmd_plot(
 
     # Etiquetas de los ejes
     ax.set_xlabel(color_field)
-    ax.set_ylabel(magnitud_field)
+    ax.set_ylabel(mag_field)
     plt.gca().invert_yaxis()
-    return ax, fig
+    return fig, ax
 
 
 def cmd_with_cluster(
@@ -187,6 +189,7 @@ def cmd_with_cluster(
     clusters: Optional[int | list[int]] = None,
     ax: Optional[plt.Axes] = None,
     legend: bool = False,
+    figsize: tuple[int, int] = (15, 6),
 ) -> tuple[plt.Figure, plt.Axes]:
     """
     Función que genera la gráfica del Color Magnitud Diagram. S
@@ -218,7 +221,7 @@ def cmd_with_cluster(
     """
     fig = None
     if ax is None:
-        fig, ax = plt.subplots(figsize=(15, 6))
+        fig, ax = plt.subplots(figsize=figsize)
     ax.scatter(
         x=df_catalog[color_field],
         y=df_catalog[mag_field],
@@ -251,10 +254,9 @@ def cmd_with_cluster(
         ax.scatter(
             x=df_is_fit[color_field],
             y=df_is_fit[mag_field],
-            s=10,
-            c="b",
+            s=15,
             edgecolor="none",
-            alpha=0.5,
+            label="Isocrona",
         )
 
     # Etiquetas de los ejes
@@ -498,6 +500,7 @@ def cluster_representation(
     factor_size: int = 200,
     ax: Optional[plt.Axes] = None,
     legend: bool = True,
+    figsize: tuple[int, int] = (8, 5),
 ) -> tuple[plt.Figure, plt.Axes]:
     """
     Función que representa el cluster en coordenadas galacticas y con los vectores
@@ -530,46 +533,71 @@ def cluster_representation(
 
     fig = None
     if ax is None:
-        fig, ax = plt.subplots(figsize=(8, 5))
+        fig, ax = plt.subplots(figsize=figsize)
+        is_wcs = False
+    else:
+        # Heurística sencilla para saber si es un eje WCS
+        is_wcs = hasattr(ax, "get_transform") and hasattr(ax, "coords")
+
+    tr = ax.transData
+    if is_wcs:
+        tr = ax.get_transform("galactic")
+        lon = ax.coords[0]
+        lat = ax.coords[1]
+        lon.set_format_unit(u.deg, decimal=True)
+        lat.set_format_unit(u.deg, decimal=True)
+        lon.set_axislabel("l (Galactic Longitude)")
+        lat.set_axislabel("b (Galactic Latitude)")
 
     mean_pm_l = df_gc[PM_G_LONGITUDE].mean()
     mean_pm_b = df_gc[PM_G_LATITUDE].mean()
 
-    ax.scatter(df_gc[G_LONGITUDE], df_gc[G_LATITUDE], s=1, color="grey", alpha=0.5)
+    ax.scatter(
+        df_gc[G_LONGITUDE] * u.deg,
+        df_gc[G_LATITUDE] * u.deg,
+        s=1,
+        color="grey",
+        alpha=0.5,
+        transform=tr,
+    )
     ax.quiver(
-        df_gc[G_LONGITUDE],
-        df_gc[G_LATITUDE],
+        df_gc[G_LONGITUDE] * u.deg,
+        df_gc[G_LATITUDE] * u.deg,
         (df_gc[PM_G_LONGITUDE] - mean_pm_l) / factor_size,
         (df_gc[PM_G_LATITUDE] - mean_pm_b) / factor_size,
         color="grey",
         scale=5,
         width=0.003,
+        transform=tr,
     )
 
     if not df_highlights_stars.empty:
         ax.quiver(
-            df_highlights_stars[G_LONGITUDE],
-            df_highlights_stars[G_LATITUDE],
+            df_highlights_stars[G_LONGITUDE] * u.deg,
+            df_highlights_stars[G_LATITUDE] * u.deg,
             (df_highlights_stars[PM_G_LONGITUDE] - mean_pm_l) / factor_size,
             (df_highlights_stars[PM_G_LATITUDE] - mean_pm_b) / factor_size,
             color="blue",
             scale=5,
             width=0.003,
             label="Pre-selected Stars",
+            transform=tr,
         )
 
     if isinstance(df_source_x, pd.DataFrame):
         ax.scatter(
-            df_source_x.lii.values,
-            df_source_x.bii.values,
+            df_source_x.lii.values * u.deg,
+            df_source_x.bii.values * u.deg,
             marker="s",
             s=20,
             color="k",
             label="XR_Source",
+            transform=tr,
         )
 
-    ax.set_xlabel("l (Galactic Longitude)")
-    ax.set_ylabel("b (Galactic Latitude)")
+    if not is_wcs:
+        ax.set_xlabel("l (Galactic Longitude)")
+        ax.set_ylabel("b (Galactic Latitude)")
     if legend:
         ax.legend()
     return fig, ax
