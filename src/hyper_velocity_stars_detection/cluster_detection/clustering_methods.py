@@ -5,6 +5,8 @@ from attr import attrs
 from sklearn.cluster import DBSCAN, HDBSCAN, AgglomerativeClustering, KMeans
 from sklearn.mixture import GaussianMixture
 
+from hyper_velocity_stars_detection.default_variables import MAX_CLUSTER_DEFAULT
+
 
 class GaussianMixtureClustering:
     """
@@ -23,7 +25,6 @@ class GaussianMixtureClustering:
 
 
 ClusterMethods = Type[DBSCAN | KMeans | HDBSCAN | GaussianMixtureClustering]
-MAX_CLUSTER_DEFAULT = 10
 
 
 class ClusterMethodsNames:
@@ -78,8 +79,6 @@ class DbscanParamsDistribution(ClusterParamsDistribution):
     params_distribution = {
         "eps": ["unif", "eps", 0.1, 1.0],
         "min_samples": ["int", "min_samples", 3, 10],
-        "metric": ["cat", "metric", ["cityblock", "euclidean", "l1", "l2", "manhattan"]],
-        "algorithm": ["cat", "algorithm", ["auto", "ball_tree", "kd_tree", "brute"]],
     }
 
 
@@ -91,8 +90,6 @@ class HdbscanParamsDistribution(ClusterParamsDistribution):
     params_distribution = {
         "min_cluster_size": ["int", "min_cluster_size", 10, 100],
         "min_samples": ["int", "min_samples", 3, 10],
-        "metric": ["cat", "metric", ["cityblock", "euclidean", "l1", "l2", "manhattan"]],
-        "algorithm": ["cat", "algorithm", ["auto", "ball_tree", "kd_tree", "brute"]],
     }
 
 

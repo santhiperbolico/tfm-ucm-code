@@ -1,13 +1,17 @@
 import logging
+from typing import Optional
 
 import astropy.units as u
 import numpy as np
+import pandas as pd
 from astropy.coordinates import SkyCoord
 from astropy.table.table import Table
 from astropy.units import Unit
 from astroquery.gaia import Gaia
 from astroquery.heasarc import Heasarc
 from astroquery.simbad import Simbad
+from astroquery.vizier import Vizier
+from zero_point import zpt
 
 HEASARC_COLUMNS = [
     "NAME",
@@ -17,6 +21,61 @@ HEASARC_COLUMNS = [
     "HALF_LIGHT_RADIUS",
     "CENTRAL_CONCENTRATION",
 ]
+
+
+def get_vizier_catalog(
+    catalog: str | list[str], columns: Optional[list[str]] = None
+) -> list[pd.DataFrame]:
+    """
+    Función que descarga un catálogo a través de Vizier introduciéndo el código
+    del catálogo.
+
+    Parameters
+    ----------
+    catalog: str | list[str]
+        Código o lista de códigos a descargar
+    columns: Optional[list[str]]= None
+        Lista de columnas a descargar, se aplicará a todos los catálogos seleccionados.
+
+    Returns
+    -------
+    df_catalogs: list[pd.DataFrame]
+        Lista de catálogos descargados
+    """
+    list_catalog = catalog
+    if isinstance(catalog, str):
+        list_catalog = [catalog]
+
+    v_catalog = Vizier(columns=["**"])
+    if isinstance(columns, list):
+        v_catalog = Vizier(columns=columns)
+    v_catalog.ROW_LIMIT = -1
+    result = v_catalog.get_catalogs(list_catalog)
+    return [table_data.to_pandas() for table_data in result]
+
+
+def get_main_id(name: str) -> str | None:
+    """
+    Función que extrae un  identificador único del objeto. Si no lo encuentra devuelve None.
+
+    Parameters
+    ----------
+    name: str
+        Nombre a buscar.
+
+    Returns
+    -------
+    main_id: str | None
+        Devuelve el identificador si lo encuentra
+    """
+    try:
+        result = Simbad.query_object(name)
+        if result:
+            main_id = "_".join(result["MAIN_ID"][0].split())
+            return main_id
+    except Exception as e:
+        logging.info(f"Error con {name}: {e}")
+    return None
 
 
 def get_skycoords(
@@ -154,3 +213,85 @@ def get_object(name: str, radius_arcsec: float = 5.0, timeout: int = 120) -> Tab
     results = job.get_results()
     logging.info(f"Se encontraron {len(results)} fuentes en el radio de búsqueda:")
     return results
+
+
+def fix_parallax(df_data: pd.DataFrame, warnings: bool = True) -> pd.DataFrame:
+    """
+    Función que corrige el sesgo del paralaje de los datos del objeto calculando el punto zero
+    del paralaje corregido (Lindegren et al., 2021 https://doi.org/10.1051/0004-6361/202039653).
+
+    Parameters
+    ----------
+    df_data: pd.DataFrame
+        Datos con las métricas
+    warnings: bool, default True
+        Indica si se quiere mostrar los warning asociadso a zero_point.get_zpt
+
+    Returns
+    -------
+    df_data: pd.DataFrame
+        Datos con la columna extra de parallax_corrected. En el caso de que exista la columna
+        la modifica.
+    """
+    needed_columns = [
+        "parallax",
+        "phot_g_mean_mag",
+        "nu_eff_used_in_astrometry",
+        "nu_eff_used_in_astrometry",
+        "pseudocolour",
+        "ecl_lat",
+        "astrometric_params_solved",
+    ]
+    if not np.isin(needed_columns, df_data.columns).all():
+        df_data["parallax_corrected"] = np.nan
+        return df_data
+
+    zpt.load_tables()
+    parallax = df_data["parallax"].values
+    phot_g_mean_mag = df_data["phot_g_mean_mag"].values
+    nueffused = df_data["nu_eff_used_in_astrometry"].values
+    pseudocolour = df_data["pseudocolour"].values
+    ecl_lat = df_data["ecl_lat"].values
+    astrometric_params_solved = df_data["astrometric_params_solved"].values
+    zpvals = zpt.get_zpt(
+        phot_g_mean_mag,
+        nueffused,
+        pseudocolour,
+        ecl_lat,
+        astrometric_params_solved,
+        _warnings=warnings,
+    )
+    df_data["parallax_corrected"] = parallax - zpvals
+    return df_data
+
+
+def get_radio(coords: Table, radio_scale: float, radius_type: Optional[str] = None) -> float:
+    """
+    Función que devulve el radio asociado a la búsqueda
+    Parameters
+    ----------
+    radio_scale
+    radius_type
+    coords
+
+    Returns
+    -------
+
+    """
+    radius = None
+    if radius_type is None:
+        radius_type = "vision_fold_radius"
+
+    if radius_type == "vision_fold_radius":
+        radius = radio_scale * coords["ANGULAR_SIZE"][0] / 60
+    if radius_type == "core_radius":
+        radius = radio_scale * coords["CORE_RADIUS"][0]
+    if radius_type == "half_light_radius":
+        radius = radio_scale * coords["HALF_LIGHT_RADIUS"][0]
+
+    if radius is None:
+        raise ValueError(
+            'El tipo de radio no es correcto, pruebe con "core_radius", '
+            '"half_light_radius" o "vision_fold_radius"'
+        )
+    return radius

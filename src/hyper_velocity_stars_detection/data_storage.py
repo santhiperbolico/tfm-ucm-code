@@ -33,6 +33,51 @@ class StorageObject(ABC):
 
 
 @attrs(auto_attribs=True)
+class StorageCustomObject(StorageObject):
+    """
+    Serializador que guarda
+    """
+
+    custom_class: Any
+    prefix: str
+
+    @staticmethod
+    def save(path: str, value: Any) -> None:
+        """
+        Método de guardado del elemento.
+
+        Parameters
+        ----------
+        path: str
+            Ruta completa donde se quiere almacenar el archivo.
+        value: Any
+        """
+        value.save(path)
+
+    def load(self, path: str) -> Optional[Any]:
+        """
+        Método que carga el elemento usando pickle.
+
+        Parameters
+        ----------
+        path: str
+            Ruta del archivo.
+
+        Returns
+        -------
+        object: Any
+            Objeto cargado
+        """
+        files = [f for f in os.scandir(path) if f.name.startswith(self.prefix)]
+        if len(files) == 1:
+            return self.custom_class.load(files[0].path)
+        if len(files) > 1:
+            raise ValueError("Se ha encontrado más de un archivo con prefijp %s ." % self.prefix)
+
+        raise ValueError("No se ha encontrado ningún archivo de prefijo %s" % self.prefix)
+
+
+@attrs(auto_attribs=True)
 class StorageObjectPickle(StorageObject):
     """
     Serializador de valores que usa `pickle` como backend.
@@ -127,7 +172,7 @@ class StorageObjectTableVotable(StorageObject):
             Ruta completa donde se quiere almacenar el archivo.
         value: Any
         """
-        value.write(path + ".vot", format="votable")
+        value.write(path, format="votable")
 
     @staticmethod
     def load(path: str) -> Table:
@@ -201,14 +246,18 @@ class ContainerSerializerZip:
 
     _serializers: Mapping[str, StorageObject]
 
-    def save(self, path: str, container: Mapping[str, Any]) -> None:
+    def save(self, path: str, container: Mapping[str, Any], ignore_errors: bool = False) -> None:
         with TemporaryDirectory() as temp_path:
             for name, serializer in self._serializers.items():
                 temp_file_path = os.path.join(temp_path, name)
-                serializer.save(temp_file_path, container[name])
+                try:
+                    serializer.save(temp_file_path, container[name])
+                except AttributeError as error:
+                    if not ignore_errors:
+                        raise error
             shutil.make_archive(path, "zip", temp_path)
 
-    def load(self, path: str) -> Dict[str, Any]:
+    def load(self, path: str, ignore_errors: bool = False) -> Dict[str, Any]:
         with ZipFile(path, "r") as zip_instance:
             if zip_instance.testzip() is not None:
                 raise InvalidFileFormat(f"El archivo '{path}' no es un archivo zip válido")
@@ -217,7 +266,11 @@ class ContainerSerializerZip:
                 container = {}
                 for name, serializer in self._serializers.items():
                     temp_file_path = os.path.join(temp_path, name)
-                    container[name] = serializer.load(temp_file_path)
+                    try:
+                        container[name] = serializer.load(temp_file_path)
+                    except FileNotFoundError as error:
+                        if not ignore_errors:
+                            raise error
         return container
 
     @staticmethod
