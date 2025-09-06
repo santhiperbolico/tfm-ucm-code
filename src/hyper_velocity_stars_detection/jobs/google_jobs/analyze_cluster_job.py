@@ -178,7 +178,7 @@ def save_results(
     file_path = os.path.join(path, file_name)
     client = storage.Client(project=project_id)
     bucket = client.bucket(bucket_name)
-    blob_path = f"{path_bucket}/{file_name}"
+    blob_path = os.path.join(path_bucket, file_name)
     blob = bucket.blob(blob_path)
     blob.upload_from_filename(file_path)
 
