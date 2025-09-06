@@ -19,8 +19,7 @@ Este proyecto tiene tres objetivos principales:
 
 - `notebooks/`: Jupyter Notebooks para el procesamiento y análisis de datos.
 - `data/`: Datos relevantes, incluyendo catálogos de cúmulos globulares y datos de Gaia filtrados.
-- `scripts/`: Scripts en Python para el preprocesamiento de datos y cálculos astrofísicos.
-- `results/`: Resultados de los análisis, incluyendo posibles candidatos de cúmulos globulares con IMBH.
+- `src/hyper_velocity_stars_detection/jobs`: Scripts en Python para el preprocesamiento de datos y cálculos astrofísicos.
   
 ## Instalación
 
@@ -39,7 +38,7 @@ Este proyecto tiene tres objetivos principales:
 
 ## Uso
 
-Para ejecutar los análisis, abre los notebooks en la carpeta `notebooks/` y sigue las instrucciones paso a paso. Los datos de Gaia se procesan en el notebook principal, y los scripts en `scripts/` se pueden usar para tareas de filtrado y análisis adicionales.
+Para ejecutar los análisis, abre los notebooks en la carpeta `notebooks/` y sigue las instrucciones paso a paso. Los datos de Gaia se procesan en el notebook principal, y los scripts en `src/hyper_velocity_stars_detection/jobs/` se pueden usar para tareas de filtrado y análisis adicionales.
 
 ## Contribuciones
 
