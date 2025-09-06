@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 import astropy.units as u
 import numpy as np
@@ -9,6 +10,7 @@ from astropy.units import Unit
 from astroquery.gaia import Gaia
 from astroquery.heasarc import Heasarc
 from astroquery.simbad import Simbad
+from astroquery.vizier import Vizier
 from zero_point import zpt
 
 HEASARC_COLUMNS = [
@@ -19,6 +21,37 @@ HEASARC_COLUMNS = [
     "HALF_LIGHT_RADIUS",
     "CENTRAL_CONCENTRATION",
 ]
+
+
+def get_vizier_catalog(
+    catalog: str | list[str], columns: Optional[list[str]] = None
+) -> list[pd.DataFrame]:
+    """
+    Función que descarga un catálogo a través de Vizier introduciéndo el código
+    del catálogo.
+
+    Parameters
+    ----------
+    catalog: str | list[str]
+        Código o lista de códigos a descargar
+    columns: Optional[list[str]]= None
+        Lista de columnas a descargar, se aplicará a todos los catálogos seleccionados.
+
+    Returns
+    -------
+    df_catalogs: list[pd.DataFrame]
+        Lista de catálogos descargados
+    """
+    list_catalog = catalog
+    if isinstance(catalog, str):
+        list_catalog = [catalog]
+
+    v_catalog = Vizier(columns=["**"])
+    if isinstance(columns, list):
+        v_catalog = Vizier(columns=columns)
+    v_catalog.ROW_LIMIT = -1
+    result = v_catalog.get_catalogs(list_catalog)
+    return [table_data.to_pandas() for table_data in result]
 
 
 def get_main_id(name: str) -> str | None:
@@ -230,3 +263,35 @@ def fix_parallax(df_data: pd.DataFrame, warnings: bool = True) -> pd.DataFrame:
     )
     df_data["parallax_corrected"] = parallax - zpvals
     return df_data
+
+
+def get_radio(coords: Table, radio_scale: float, radius_type: Optional[str] = None) -> float:
+    """
+    Función que devulve el radio asociado a la búsqueda
+    Parameters
+    ----------
+    radio_scale
+    radius_type
+    coords
+
+    Returns
+    -------
+
+    """
+    radius = None
+    if radius_type is None:
+        radius_type = "vision_fold_radius"
+
+    if radius_type == "vision_fold_radius":
+        radius = radio_scale * coords["ANGULAR_SIZE"][0] / 60
+    if radius_type == "core_radius":
+        radius = radio_scale * coords["CORE_RADIUS"][0]
+    if radius_type == "half_light_radius":
+        radius = radio_scale * coords["HALF_LIGHT_RADIUS"][0]
+
+    if radius is None:
+        raise ValueError(
+            'El tipo de radio no es correcto, pruebe con "core_radius", '
+            '"half_light_radius" o "vision_fold_radius"'
+        )
+    return radius

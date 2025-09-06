@@ -1,5 +1,6 @@
 import logging
 import os
+from abc import ABC, abstractmethod
 from typing import Optional
 
 import astropy.units as u
@@ -11,66 +12,189 @@ from attr import attrib, attrs
 
 from hyper_velocity_stars_detection.data_storage import (
     ContainerSerializerZip,
+    StorageCustomObject,
     StorageObjectPandasCSV,
+    StorageObjectPickle,
+    StorageObjectTableVotable,
 )
-from hyper_velocity_stars_detection.sources.catalogs import Catalog, CatalogsType
+from hyper_velocity_stars_detection.sources.catalogs import GaiaCatalog, get_catalog
 from hyper_velocity_stars_detection.sources.metrics import (
     convert_mas_yr_in_km_s,
     get_l_b_velocities,
 )
-from hyper_velocity_stars_detection.sources.ruwe_tools.dr2.ruwetools import U0Interpolator
-from hyper_velocity_stars_detection.sources.utils import (
-    fix_parallax,
-    get_object_from_simbad,
-    get_skycoords,
+from hyper_velocity_stars_detection.sources.utils import get_object_from_simbad, get_skycoords
+from hyper_velocity_stars_detection.variables_names import (
+    ASTRO_OBJECT,
+    ASTRO_OBJECT_DATA,
+    PARALLAX,
+    PARALLAX_ERROR,
+    PM,
+    PM_DEC,
+    PM_DEC_ERROR,
+    PM_DEC_KMS,
+    PM_G_LATITUDE,
+    PM_G_LONGITUDE,
+    PM_KMS,
+    PM_RA,
+    PM_RA_ERROR,
+    PM_RA_KMS,
 )
 
-SAMPLE_DESCRIPTION = [
-    "Todas las estrellas seleccionadas",
-    "Las estrellas con errores de paralaje y pm menores al 10%",
-    "Las estrellas con un error de paralaje menor del 30% y de pm menores al 10%",
-    "Las estrellas con un error de paralaje menor del 10% y de pm menores al 20%.",
-]
+INFO_JSON_NAME = "info_json"
+INFO_VOT_NAME = "info_vot"
+
+CATALOG_NAME = "catalog"
+RADIO_SCALE = "radio_scale"
+DATA = "data"
 
 
-class InvalidFileFormat(RuntimeError):
+class DataSample(ABC):
+    label = "sample_label"
+    description = "description"
+
+    @staticmethod
+    @abstractmethod
+    def get_sample(df_data: pd.DataFrame) -> np.ndarray:
+        raise NotImplementedError
+
+
+class DataSample1(DataSample):
+    label = "df_c1"
+    description = "Todas las estrellas seleccionadas"
+
+    @staticmethod
+    def get_sample(df_data: pd.DataFrame) -> np.ndarray:
+        """
+        Método que devuelve una mascara con una muestra de datos siguiendo el criterio:
+        - Todas las estrellas seleccionadas
+
+        Parameters
+        ----------
+        df_data: pd.DataFrame,
+            Datos originales
+        Returns
+        -------
+        mask_data: np.ndarray
+            Array de booleanos que devuelve la muestra seleccionada.
+        """
+        mask_data = np.ones(df_data.shape[0]).astype(bool)
+        return mask_data
+
+
+class DataSample2(DataSample):
+    label = "df_c2"
+    description = "Las estrellas con errores de paralaje y pm menores al 10%"
+
+    @staticmethod
+    def get_sample(df_data: pd.DataFrame) -> np.ndarray:
+        """
+        Método que devuelve una mascara con una muestra de datos siguiendo el criterio:
+        - Las estrellas con errores de paralaje y pm menores al 10%
+
+        Parameters
+        ----------
+        df_data: pd.DataFrame,
+            Datos originales
+        Returns
+        -------
+        mask_data: np.ndarray
+            Array de booleanos que devuelve la muestra seleccionada.
+        """
+        mask_data = (
+            (df_data[PM_RA_ERROR] < 0.10)
+            & (df_data[PM_DEC_ERROR] < 0.10)
+            & (df_data[PARALLAX_ERROR] < 0.10)
+        )
+        return mask_data
+
+
+class DataSample3(DataSample):
+    label = "df_c3"
+    description = "Las estrellas con un error de paralaje menor del 30% y de pm menores al 10%"
+
+    @staticmethod
+    def get_sample(df_data: pd.DataFrame) -> np.ndarray:
+        """
+        Método que devuelve una mascara con una muestra de datos siguiendo el criterio:
+        - Las estrellas con un error de paralaje menor del 30% y de pm menores al 10%
+
+        Parameters
+        ----------
+        df_data: pd.DataFrame,
+            Datos originales
+        Returns
+        -------
+        mask_data: np.ndarray
+            Array de booleanos que devuelve la muestra seleccionada.
+        """
+        mask_data = (
+            (df_data[PM_RA_ERROR] < 0.10)
+            & (df_data[PM_DEC_ERROR] < 0.10)
+            & (df_data[PARALLAX_ERROR] < 0.30)
+        )
+        return mask_data
+
+
+class DataSample4(DataSample):
+    label = "df_c4"
+    description = "Las estrellas con un error de paralaje menor del 10% y de pm menores al 30%."
+
+    @staticmethod
+    def get_sample(df_data: pd.DataFrame) -> np.ndarray:
+        """
+        Método que devuelve una mascara con una muestra de datos siguiendo el criterio:
+        - Las estrellas con un error de paralaje menor del 10% y de pm menores al 20%.
+
+        Parameters
+        ----------
+        df_data: pd.DataFrame,
+            Datos originales
+        Returns
+        -------
+        mask_data: np.ndarray
+            Array de booleanos que devuelve la muestra seleccionada.
+        """
+
+        mask_data = (
+            (df_data[PM_RA_ERROR] < 0.30)
+            & (df_data[PM_DEC_ERROR] < 0.30)
+            & (df_data[PARALLAX_ERROR] < 0.10)
+        )
+        return mask_data
+
+
+def get_data_sample(
+    data: pd.DataFrame, sample_type: str, data_sample_types: list[DataSample]
+) -> np.ndarray:
     """
-    Error que se lanza cuando un archivo no tiene el formato esperado.
-    """
+    Método que devuelve una mascara con una muestra  de datos siguiendo los siguientes
+    criterios y el tipo de muestra seleccionada.
+    - DATA_SAMPLE_1: Todas las estrellas seleccionadas.
+    - DATA_SAMPLE_2: Las estrellas con errores de paralaje y pm menores al 10%.
+    - DATA_SAMPLE_3: Las estrellas con un error de paralaje menor del 30% y de pm menores al 10%.
+    - DATA_SAMPLE_4: Las estrellas con un error de paralaje menor del 10% y de pm menores al 20%.
 
-    pass
-
-
-def get_radio(coords: Table, radio_scale: float, radius_type: Optional[str] = None) -> float:
-    """
-    Función que devulve el radio asociado a la búsqueda
     Parameters
     ----------
-    radio_scale
-    radius_type
-    coords
+    data: pd.DataFrame,
+        Datos originales
+    sample_type: str
+        Nombre de los datos donde termina con el sufico que indica el tipo de muestra.
+    data_sample_types: list[DataSample]
+        Lista de las muestras de viables a analizar.
 
     Returns
     -------
-
+    mask_data: np.ndarray
+        Array de booleanos que devuelve la muestra seleccionada.
     """
-    radius = None
-    if radius_type is None:
-        radius_type = "vision_fold_radius"
+    for data_sample in data_sample_types:
+        if sample_type == data_sample.label:
+            return data_sample.get_sample(data)
 
-    if radius_type == "vision_fold_radius":
-        radius = radio_scale * coords["ANGULAR_SIZE"][0] / 60
-    if radius_type == "core_radius":
-        radius = radio_scale * coords["CORE_RADIUS"][0]
-    if radius_type == "half_light_radius":
-        radius = radio_scale * coords["HALF_LIGHT_RADIUS"][0]
-
-    if radius is None:
-        raise ValueError(
-            'El tipo de radio no es correcto, pruebe con "core_radius", '
-            '"half_light_radius" o "vision_fold_radius"'
-        )
-    return radius
+    raise ValueError(
+        "El tipo de muestra %s que se quiere seleccionar no está implementada." % sample_type
+    )
 
 
 @attrs
@@ -79,8 +203,12 @@ class AstroObject:
     main_id = attrib(init=True, type=str)
     info = attrib(init=True, type=Table)
     coord = attrib(init=True, type=SkyCoord)
-    data = attrib(init=False, type=pd.DataFrame)
-    file = attrib(init=False, type=str)
+    _storage = ContainerSerializerZip(
+        serializers={
+            INFO_JSON_NAME: StorageObjectPickle(),
+            INFO_VOT_NAME: StorageObjectTableVotable(),
+        }
+    )
 
     @classmethod
     def get_object(cls, name: str) -> "AstroObject":
@@ -103,38 +231,15 @@ class AstroObject:
         coord = get_skycoords(result_object, u.deg, u.deg)
         return cls(name, main_id, result_object, coord)
 
-    def download_object(
-        self,
-        catalog_name: CatalogsType,
-        radius_scale: float = 1,
-        radius_type: Optional[str] = None,
-        filter_parallax_min: Optional[float] = None,
-        filter_parallax_max: Optional[float] = None,
-        filter_parallax_error: Optional[float] = None,
-        path: str = ".",
-        return_data: bool = True,
-    ) -> pd.DataFrame:
+    def download_data(self, catalog_name: str, radius: float, **filter_params) -> pd.DataFrame:
         """
          Método que descarga los datos del objeto astronómico de catalog_name.
          Parameters
          ----------
          catalog_name: CatalogsType
-             Nombre del tipo del catálogo.
-         radius_scale: float, default 1
-             Escala del radio de búsqueda
-         radius_type: Optional[str], default None
-             Tipo del radio de búsqueda "core_radius", "half_light_radius",
-             "vision_fold_radius". Por defecto es "vision_fold_radius".
-         filter_parallax_min: Optional[float], default None
-             Paralaje mínimo que buscar.
-         filter_parallax_max: Optional[float], default None
-             Paralaje máximo que buscar.
-         filter_parallax_error: Optional[float], default None
-             Máximo error en el parale a buscar.
-         path: str, default "."
-            Ruta donde se quiere guardar el archivo
-         return_data: bool, default False
-            Indica si queremos devolver lso datos en forma de dataframe.
+             Nombre del tipo del catálogo a utilizar.
+         radius: float
+            Radio de búsqueda, en grados.
 
         Returns
          -------
@@ -143,173 +248,89 @@ class AstroObject:
         """
         ra = self.coord.ra.value
         dec = self.coord.dec.value
+        catalog = get_catalog(catalog_name)
 
-        radius = get_radio(self.info, radius_scale, radius_type)
-        catalog = Catalog.get_catalog(catalog_name)
-        r_scale = f"{radius_scale:.0f}"
-        self.file = os.path.join(path, f"{catalog_name}_{self.name}_r{r_scale}.vot")
-        results = catalog.download_results(
-            ra=ra,
-            dec=dec,
-            radius=radius,
-            output_file=self.file,
-            filter_parallax_min=filter_parallax_min,
-            filter_parallax_max=filter_parallax_max,
-            filter_parallax_error=filter_parallax_error,
-            return_data=return_data,
+        data = catalog.download_data(
+            ra=ra, dec=dec, radius=radius, output_file=None, **filter_params
         )
-        if isinstance(results, pd.DataFrame):
-            logging.info(f"Se encontraron {len(results)} fuentes en el radio de búsqueda:")
-            self.data = results
-            return self.data
+        return data
 
-    def read_object(
-        self,
-        path: str,
-        file_to_read: Optional[str] = None,
-        catalog_name: Optional[CatalogsType] = None,
-        radius_scale: Optional[float] = None,
-    ) -> pd.DataFrame:
+    def save(self, path: str) -> None:
         """
-        Método que lee los datos del objeto astronómico de un archivo del catálogo.
+        Método que guarda el objeto en un archivo zip con la información del elemento.
 
         Parameters
         ----------
         path: str
             Ruta donde se encuentra el archivo.
-        file_to_read: Optional[str], default None.
-            Nombre del archivo. Si es None se tiene que indicar el resto de parámetros-
-        catalog_name: Optional[CatalogsType], default None
-            Nombre del catálogo. Se utiliza para construir el nombre dle archivo
-        radius_scale: Optional[float], default None
-            Escala del radio de búsqueda. Se utiliza para construir el nombre dle archivo.
-
-        Returns
-        -------
-        results: pd.DataFrame
-            Tabla con los datos del catálogo descargados.
-
         """
+        info_json = {
+            "name": self.name,
+            "main_id": self.main_id,
+            "coord": self.coord.to_string(precision=16).split(),
+        }
 
-        if file_to_read is None:
-            r_scale = f"r{radius_scale:.0f}"
-            file_to_read = f"{catalog_name}_{self.name}_{r_scale}.vot"
-        self.file = os.path.join(path, file_to_read)
-        results = Catalog.read_catalog(self.file)
-        self.data = results
-        return self.data
+        container = {INFO_JSON_NAME: info_json, INFO_VOT_NAME: self.info}
+        filename = f"{ASTRO_OBJECT}_{self.main_id}"
+        file_path = os.path.join(path, filename)
+        self._storage.save(file_path, container)
 
-    def set_extra_metrics(self) -> pd.DataFrame:
+    @classmethod
+    def load(cls, path: str) -> "AstroObject":
         """
-        Método que copia los datos originales y calcula métricas extra como los movimientos
-        propios en km por segundo o el movimiento propio en coordenadas galacticas.
-
-        Returns
-        -------
-        df_r: pd.DataFrame
-            Datos copiados con las métricas extra.
-        """
-        df_r = fix_parallax(self.data)
-        df_r["pmra_kms"] = convert_mas_yr_in_km_s(
-            df_r["parallax_corrected"].values, df_r["pmra"].values
-        )
-        df_r["pmdec_kms"] = convert_mas_yr_in_km_s(
-            df_r["parallax_corrected"].values, df_r["pmdec"].values
-        )
-        df_r["pm_kms"] = np.sqrt(df_r.pmra_kms**2 + df_r.pmdec_kms**2)
-        df_r["pm"] = np.sqrt(df_r.pmra**2 + df_r.pmdec**2)
-        df_r["pm_l"], df_r["pm_b"] = get_l_b_velocities(
-            df_r.ra.values, df_r.dec.values, df_r.pmra.values, df_r.pmdec.values
-        )
-
-        u0_object = U0Interpolator(n_p=5)
-        # Métricas de cualificación de la muestra
-        df_r["uwe"] = u0_object.get_uwe_from_gaia(df_r)
-        df_r["ruwe"] = df_r["uwe"] / u0_object.get_u0(df_r["phot_g_mean_mag"], df_r["bp_rp"])
-        return df_r
-
-    def qualify_data(
-        self,
-        max_ruwe: float = 1.4,
-        pmra_kms_min: Optional[float] = None,
-        pmdec_kms_min: Optional[float] = None,
-    ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-        """
-        Método que devuelve cuatro muestras de datos siguiendo los siguientes criterios. En todos
-        ello se ha aplicado un filtro de calidad donde el RUWE es menor que max_ruwe
-        - Todas las estrellas seleccionadas.
-        - Las estrellas con errores de paralaje y pm menores al 10%.
-        - Las estrellas con un error de paralaje menor del 30% y de pm menores al 10%.
-        - Las estrellas con un error de paralaje menor del 10% y de pm menores al 20%.
+        Método que carga el objeto en un archivo zip con la información del elemento.
 
         Parameters
         ----------
-        max_ruwe: float
-            Máximo RUWE aceptado en la muestra.
-        pmra_kms_min: Optional[float], default None
-            Filtro opcional. Mímimo valor para pmra en km/s.
-        pmdec_kms_min: Optional[float], default None
-            Filtro opcional. Mímimo valor para pmra en km/s.
-
-        Returns
-        -------
-        dfr_c1: pd.DataFrame
-            Todas las estrellas seleccionadas.
-        dfr_c2: pd.DataFrame
-            Las estrellas con errores de paralaje y pm menores al 10%.
-        dfr_c3: pd.DataFrame
-            Las estrellas con un error de paralaje menor del 30% y de pm menores al 10%.
-        dfr_c4: pd.DataFrame
-            Las estrellas con un error de paralaje menor del 10% y de pm menores al 20%.
+        path: str
+            Ruta donde se encuentra el archivo.
         """
-        dfr_c1 = self.set_extra_metrics()
-        mask_filter = dfr_c1.ruwe < max_ruwe
-        if pmra_kms_min:
-            mask_filter = mask_filter & (dfr_c1.pmra_kms > pmra_kms_min)
-        if pmdec_kms_min:
-            mask_filter = mask_filter & (dfr_c1.pmdec_kms > pmdec_kms_min)
-        dfr_c1 = dfr_c1[mask_filter]
-
-        dfr_c2 = dfr_c1[
-            (dfr_c1.pmra_error < 0.10)
-            & (dfr_c1.pmdec_error < 0.10)
-            & (dfr_c1.parallax_error < 0.10)
-        ]
-        dfr_c3 = dfr_c1[
-            (dfr_c1.pmra_error < 0.10)
-            & (dfr_c1.pmdec_error < 0.10)
-            & (dfr_c1.parallax_error < 0.30)
-        ]
-        dfr_c4 = dfr_c1[
-            (dfr_c1.pmra_error < 0.30)
-            & (dfr_c1.pmdec_error < 0.30)
-            & (dfr_c1.parallax_error < 0.10)
-        ]
-        return dfr_c1, dfr_c2, dfr_c3, dfr_c4
+        file = path
+        if not path.endswith(".zip"):
+            file = file + ".zip"
+        container = cls._storage.load(file)
+        info_json = container[INFO_JSON_NAME]
+        info = container[INFO_VOT_NAME]
+        coords = info_json.get("coord")
+        info_json["coord"] = SkyCoord(
+            ra=float(coords[0]), dec=float(coords[1]), unit=(u.deg, u.deg)
+        )
+        return cls(info=info, **info_json)
 
 
 @attrs
-class AstroObjectData:
+class AstroMetricData:
     """
     Clase que recoge cuatro muestras de datos de una misma consulta de datos de un objeto
     astronómico.
     """
 
-    name = attrib(type=str, init=True)
+    astro_object = attrib(type=AstroObject, init=True)
+    catalog = attrib(type=GaiaCatalog, init=True)
     radio_scale = attrib(type=float, init=True)
-    data = attrib(type=dict[str, pd.DataFrame], init=True)
+    data = attrib(type=pd.DataFrame, init=True, default=pd.DataFrame())
+
+    _storage = ContainerSerializerZip(
+        serializers={
+            ASTRO_OBJECT: StorageCustomObject(custom_class=AstroObject, prefix=ASTRO_OBJECT),
+            CATALOG_NAME: StorageObjectPickle(),
+            RADIO_SCALE: StorageObjectPickle(),
+            DATA: StorageObjectPandasCSV(),
+        }
+    )
+    _data_samples = [DataSample1(), DataSample2(), DataSample3(), DataSample4()]
 
     def __str__(self):
         """
         Método que imprime los tamaños de las muestras asociadas al objeto astronómico.
         """
         description = (
-            f"Muestras seleccionadas del objeto astronómico {self.name} "
+            f"Muestras seleccionadas del objeto astronómico {self.astro_object.name} "
             f"con radio {self.radio_scale}:\n"
         )
-        for key, value in self.data.items():
-            item = int(key.split("_")[-1].replace("c", ""))
-            description += f"\t - {key} - {SAMPLE_DESCRIPTION[item]}: {value.shape[0]}.\n"
+        for data_sample in self._data_samples:
+            value = get_data_sample(self.data, data_sample.label, self._data_samples).sum()
+            description += f"\t - {data_sample.label} - {data_sample.description}: {value}.\n"
         return description
 
     @property
@@ -317,50 +338,70 @@ class AstroObjectData:
         """
         Nombre asociado al conjunto de muestras de los datos asociados.
         """
-        return f"{self.name}_r_{int(self.radio_scale)}"
+        return (
+            f"{self.catalog.catalog_name}_{self.astro_object.main_id}_"
+            f"r_{int(self.radio_scale)}"
+        )
 
     @classmethod
-    def load_data_from_object(
+    def load_data(
         cls,
-        astro_object: AstroObject,
-        radio_scale: float,
-        max_ruwe: float = 1.4,
-        pmra_kms_min: Optional[float] = None,
-        pmdec_kms_min: Optional[float] = None,
-    ) -> "AstroObjectData":
+        name: str,
+        catalog_name: str,
+        radius: Optional[float] = None,
+        radius_scale: float = 1.0,
+        **filter_params,
+    ) -> "AstroMetricData":
         """
-        Método que genera cuatro muestras de datos siguiendo los siguientes criterios. En todos
-        ello se ha aplicado un filtro de calidad donde el RUWE es menor que max_ruwe
-        - Todas las estrellas seleccionadas.
-        - Las estrellas con errores de paralaje y pm menores al 10%.
-        - Las estrellas con un error de paralaje menor del 30% y de pm menores al 10%.
-        - Las estrellas con un error de paralaje menor del 10% y de pm menores al 20%.
+        Método que genera el objeto astro data con lso datos filtrados del objeto astronómico
+        a estudiar, descargando los datos correspondientes a la escala del radio de
+        visión utilizado.
 
         Parameters
         ----------
-        astro_object: AstroObject
-            Consutla de datos asociada al objeto astronómico de estudio.
-        radio_scale:
-            Escala del radio de búsqueda.
-        max_ruwe: float
-            Máximo RUWE aceptado en la muestra.
-        pmra_kms_min: Optional[float], default None
-            Filtro opcional. Mímimo valor para pmra en km/s.
-        pmdec_kms_min: Optional[float], default None
-            Filtro opcional. Mímimo valor para pmra en km/s.
+        name: str
+            Nombre del objeto.
+        catalog_name: str
+            Nombre del catálogo utilizado para descargarlso datos
+        radius: Optional[float] = None
+            Radio de búsqueda en grados. SI no se indica se utilizará radius_scale.
+        radius_scale: float = 1.0
+            Escala del radio de búsqueda en comparación con el campo de visión del objeto.
+            El campo de visión es extraido de la base de datos de Simbad.
+            Solo se utiliza si no se indica el radius
 
         Returns
         -------
-        object_data: AstroObjectData
+        object_data: AstroMetricData
             Clase que recoge las cuatro muestras de la consulta.
         """
-        df_name = f"df_{int(radio_scale)}"
-        result_data = astro_object.qualify_data(max_ruwe, pmra_kms_min, pmdec_kms_min)
-        data = {f"{df_name}_c{i}": result_data[i] for i in range(len(result_data))}
-        return cls(astro_object.name, radio_scale, data)
+        logging.info("-- Cargando objeto astronómico %s" % name)
+        astro_object = AstroObject.get_object(name)
+        if radius is None:
+            radius = radius_scale * astro_object.info["ANGULAR_SIZE"][0] / 60
+
+        catalog = get_catalog(catalog_name=catalog_name)
+        if not isinstance(catalog, GaiaCatalog):
+            raise ValueError(
+                "El catalogo seleccionado no se corresponde con uno válido para" "astrometría."
+            )
+
+        logging.info("-- Descargando datos principales. Aplicando los siguientes filtros:")
+        for key, value in filter_params.items():
+            logging.info("\t %s: %s" % (key, value))
+
+        data = astro_object.download_data(
+            catalog_name=catalog_name, radius=radius, **filter_params
+        )
+        astro_data = cls(astro_object, catalog, radius_scale, data)
+
+        logging.info("-- Preprocesando datos.")
+        astro_data.fix_parallax()
+        astro_data.calculate_pm_to_kms()
+        return astro_data
 
     @classmethod
-    def load(cls, filepath: str) -> "AstroObjectData":
+    def load(cls, filepath: str) -> "AstroMetricData":
         """
         Método de clase que lee los datos desde un archivo zip dado.
 
@@ -373,15 +414,16 @@ class AstroObjectData:
 
         Returns
         -------
-        object_data: AstroObjectData
+        object_data: AstroMetricData
             Datos cargados con las muestras del objeto astronómico
 
         """
-        filename = filepath.split("/")[-1].replace(".zip", "")
-        data_name = filename.split("_")[0]
-        radius_scale = int(filename.split("_")[-1].replace("r", "").split(".")[0])
-        data = ContainerSerializerZip.load_files(filepath, StorageObjectPandasCSV())
-        return cls(data_name, radius_scale, data)
+        path = filepath
+        if not filepath.endswith(".zip"):
+            path = path + ".zip"
+        container = cls._storage.load(path)
+        container[CATALOG_NAME] = get_catalog(container[CATALOG_NAME])
+        return cls(**container)
 
     def save(self, path: str) -> None:
         """
@@ -392,10 +434,15 @@ class AstroObjectData:
         path: str
             Ruta donde se va a guardar las muestras del catálogo.
         """
-        path_name = os.path.join(path, self.data_name)
-        serielizer = [StorageObjectPandasCSV] * len(self.data)
-        container = ContainerSerializerZip(dict(zip(self.data.keys(), serielizer)))
-        container.save(path_name, self.data)
+        container = {
+            ASTRO_OBJECT: self.astro_object,
+            CATALOG_NAME: self.catalog.catalog_name,
+            RADIO_SCALE: self.radio_scale,
+            DATA: self.data,
+        }
+        filename = f"{ASTRO_OBJECT_DATA}_{self.data_name}"
+        file = os.path.join(path, filename)
+        self._storage.save(file, container)
 
     def get_data(self, g_name: str) -> pd.DataFrame:
         """
@@ -412,53 +459,83 @@ class AstroObjectData:
             Copia de los datos asociadso a la muestra g_name.
         """
         try:
-            return self.data[g_name].copy()
-        except KeyError:
+            mask_data = get_data_sample(self.data, g_name, self._data_samples)
+        except ValueError:
             raise ValueError(
-                f"El catalogo de los datos {g_name} es erroneo. "
-                f"Prueba con : {list(self.data.keys())}"
+                f"El catalogo de los datos {g_name} es erroneo. Selecciona"
+                f"una muestra de: {list(ds.label for ds in self._data_samples)}"
             )
+        return self.data[mask_data].copy()
 
-    def fix_parallax(self, g_name: Optional[str] = None, **kwargs) -> None:
+    def get_data_max_samples(self, max_sample: int) -> str:
         """
-        Método que implementa la corrección del paralaje y el cálculo del movimiento
-        propio en KMS, dependiente del paralaje.
+        Método que extrae una copia de los datos asociados a la muestra con un tamaño
+        máximo que no sobre pase max_sample. SI no hay ninguna que cumpla esa condición
+        devuelve la muestra con menor tamaño.
 
         Parameters
         ----------
-        g_name: Optional[str], default None
-            Nombre del catálogo a corregir, en el caso de no especificar lo aplica a todos.
-        **kwargs
-            Parámetros de la función hyper_velocity_stars_detection.sources.utils.fix_parallax.
+        max_sample: int
+            Volumen máximo de muestra.
 
+        Returns
+        -------
+        sample_label: str
+            Nombre de la muestra seleccionada.
         """
+        size_valid_samples = np.zeros(len(self._data_samples))
+        size_samples = np.zeros(len(self._data_samples))
+        for pos, sample in enumerate(self._data_samples):
+            size = get_data_sample(self.data, sample.label, self._data_samples).sum()
+            size_samples[pos] = size
+            if size < max_sample:
+                size_valid_samples[pos] = size
 
-        if g_name is None:
-            for name, df_data in self.data.items():
-                df_data = fix_parallax(df_data, **kwargs)
-                df_data["pmra_kms"] = convert_mas_yr_in_km_s(
-                    df_data["parallax_corrected"].values, df_data["pmra"].values
-                )
-                df_data["pmdec_kms"] = convert_mas_yr_in_km_s(
-                    df_data["parallax_corrected"].values, df_data["pmdec"].values
-                )
-                df_data["pm_kms"] = np.sqrt(df_data.pmra_kms**2 + df_data.pmdec_kms**2)
-                self.data[name] = df_data
-            return None
-        try:
-            df_data = self.data[g_name]
-        except KeyError:
-            raise ValueError(
-                f"El catalogo de los datos {g_name} es erroneo. "
-                f"Prueba con : {list(self.data.keys())}"
+        pos = int(np.argmax(size_valid_samples))
+        if size_valid_samples.sum() == 0:
+            pos = int(np.argmin(size_samples))
+        sample_label = self._data_samples[pos].label
+        return sample_label
+
+    def fix_parallax(self) -> None:
+        """
+        Método que modifica el atributo data modificando la columna parallax con el ajuste
+        implementado por el catálogo y guardando lso datos originales de paralaje en la columna
+        parallax_orig. Si el catálogo no tiene implementado el método de corrección no hace nada.
+        """
+        if PARALLAX + "_orig" in self.data:
+            raise RuntimeError(
+                "Ya existe una columna ajustada, revisa tus datos y restablece"
+                "la columna 'parallax_corrected' en caso de querer volver a "
+                "ejecutar este método."
             )
+        parallax_corrected = None
+        try:
+            parallax_corrected = self.catalog.fix_parallax_zero_point(self.data)
+        except NotImplementedError:
+            logging.info(
+                "No se puede ajustar el paralaje porque no está implementado "
+                "en el catálogo %s" % self.catalog.catalog_name
+            )
+        if isinstance(parallax_corrected, np.ndarray):
+            self.data[PARALLAX + "_orig"] = self.data.parallax.values
+            self.data[PARALLAX] = parallax_corrected
 
-        df_data["pmra_kms"] = convert_mas_yr_in_km_s(
-            df_data["parallax_corrected"].values, df_data["pmra"].values
+    def calculate_pm_to_kms(self) -> None:
+        """
+        Método que calcula el movimiento propio en km por segundo. Modifica el atributo data.
+        """
+        self.data[PM_RA_KMS] = convert_mas_yr_in_km_s(
+            self.data[PARALLAX].values, self.data[PM_RA].values
         )
-        df_data["pmdec_kms"] = convert_mas_yr_in_km_s(
-            df_data["parallax_corrected"].values, df_data["pmdec"].values
+        self.data[PM_DEC_KMS] = convert_mas_yr_in_km_s(
+            self.data[PARALLAX].values, self.data[PM_DEC].values
         )
-        df_data["pm_kms"] = np.sqrt(df_data.pmra_kms**2 + df_data.pmdec_kms**2)
-        self.data[g_name] = fix_parallax(df_data, **kwargs)
-        return None
+        self.data[PM_KMS] = np.sqrt(self.data.pmra_kms**2 + self.data.pmdec_kms**2)
+        self.data[PM] = np.sqrt(self.data.pmra**2 + self.data.pmdec**2)
+        self.data[PM_G_LONGITUDE], self.data[PM_G_LATITUDE] = get_l_b_velocities(
+            self.data.ra.values,
+            self.data.dec.values,
+            self.data.pmra.values,
+            self.data.pmdec.values,
+        )

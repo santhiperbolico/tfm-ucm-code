@@ -1,10 +1,20 @@
 import logging
 from typing import Optional
 
+import astropy.units as u
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
+
+from hyper_velocity_stars_detection.variables_names import (
+    BP_RP,
+    G_LATITUDE,
+    G_LONGITUDE,
+    G_MAG,
+    PM_G_LATITUDE,
+    PM_G_LONGITUDE,
+)
 
 COLUMNS_ISOCHRONE = [
     "Zini",
@@ -43,12 +53,12 @@ COLUMNS_ISOCHRONE = [
 
 def load_isochrone_from_parsec(
     file_path: str,
-    columns: list[str] = COLUMNS_ISOCHRONE,
+    columns: Optional[list[str]] = None,
     isochrone_color_mag_1: str = "G_BPmag",
     isochrone_color_mag_2: str = "G_RPmag",
     isochrone_mag_y: str = "Gmag",
-    color_field: str = "bp_rp",
-    magnitud_field: str = "phot_g_mean_mag",
+    color_field: str = BP_RP,
+    magnitud_field: str = G_MAG,
 ) -> pd.DataFrame:
     """
     Función que carga los datos de la isochrona generada por ParSec.
@@ -57,7 +67,7 @@ def load_isochrone_from_parsec(
     ----------
     file_path: str
         Ruta del archivo.
-    columns: list[str], default COLUMNS_ISOCHRONE
+    columns: Optional[list[str]] = None,
         Lista con las columnas del archivo de la isochrona.
     isochrone_color_mag_1: str
         Magnitud del espectro rojo del color
@@ -75,6 +85,8 @@ def load_isochrone_from_parsec(
     df_isochrone: pd.DataFrame
         Tabla de datos cargados de la isochrona.
     """
+    if columns is None:
+        columns = COLUMNS_ISOCHRONE
     # Contar cuántas líneas de encabezado hay
     with open(file_path, "r") as file:
         lines = file.readlines()
@@ -102,12 +114,13 @@ def load_isochrone_from_parsec(
 def cmd_plot(
     df_catalog: pd.DataFrame,
     df_isochrone: Optional[pd.DataFrame] = None,
-    color_field: str = "bp_rp",
-    magnitud_field: str = "phot_g_mean_mag",
+    color_field: str = BP_RP,
+    mag_field: str = G_MAG,
     isochrone_distance_module: float = 0,
     isochrone_redding: float = 0,
     ax: Optional[plt.Axes] = None,
-) -> tuple[plt.Axes, plt.Figure]:
+    figsize: tuple[int, int] = (15, 6),
+) -> tuple[plt.Figure, plt.Axes]:
     """
     Función que genera la gráfica del Color Magnitud Diagram. S
     Parameters
@@ -118,7 +131,7 @@ def cmd_plot(
         Tabla con los datos de la isochrona.
     color_field: str
         Nombre del campo de color del CMD.
-    magnitud_field: str
+    mag_field: str
         Nombre del campo de la magnitud.
     isochrone_distance_module: float
         Módulo de distancia para la corrección de la isochrona.
@@ -127,19 +140,19 @@ def cmd_plot(
 
     Returns
     -------
-    ax: Axes
-        Eje de la gráfica.
     fig: Figure
         Figura con el CMD.
+    ax: Axes
+        Eje de la gráfica.
     """
 
     fig = None
     if ax is None:
-        fig, ax = plt.subplots(figsize=(15, 6))
+        fig, ax = plt.subplots(figsize=figsize)
     # Crear el scatter plot
     plt.scatter(
         x=df_catalog[color_field],
-        y=df_catalog[magnitud_field],
+        y=df_catalog[mag_field],
         s=10,
         c="k",
         edgecolor="none",
@@ -147,11 +160,11 @@ def cmd_plot(
     )
     if isinstance(df_isochrone, pd.DataFrame):
         df_is_fit = fit_isochrone(
-            df_isochrone, isochrone_distance_module, isochrone_redding, color_field, magnitud_field
+            df_isochrone, isochrone_distance_module, isochrone_redding, color_field, mag_field
         )
         plt.scatter(
             x=df_is_fit[color_field],
-            y=df_is_fit[magnitud_field],
+            y=df_is_fit[mag_field],
             s=10,
             c="b",
             edgecolor="none",
@@ -160,21 +173,23 @@ def cmd_plot(
 
     # Etiquetas de los ejes
     ax.set_xlabel(color_field)
-    ax.set_ylabel(magnitud_field)
+    ax.set_ylabel(mag_field)
     plt.gca().invert_yaxis()
-    return ax, fig
+    return fig, ax
 
 
 def cmd_with_cluster(
     df_catalog: pd.DataFrame,
     labels: np.ndarray,
     df_isochrone: Optional[pd.DataFrame] = None,
-    color_field: str = "bp_rp",
-    magnitud_field: str = "phot_g_mean_mag",
+    color_field: str = BP_RP,
+    mag_field: str = G_MAG,
     isochrone_distance_module: float = 0,
     isochrone_redding: float = 0,
     clusters: Optional[int | list[int]] = None,
     ax: Optional[plt.Axes] = None,
+    legend: bool = False,
+    figsize: tuple[int, int] = (15, 6),
 ) -> tuple[plt.Figure, plt.Axes]:
     """
     Función que genera la gráfica del Color Magnitud Diagram. S
@@ -188,12 +203,14 @@ def cmd_with_cluster(
         Tabla con los datos de la isochrona.
     color_field: str
         Nombre del campo de color del CMD.
-    magnitud_field: str
+    mag_field: str
         Nombre del campo de la magnitud.
     isochrone_distance_module: float
         Módulo de distancia para la corrección de la isochrona.
     isochrone_redding: float
         Ajuste de enrojecimiento de la isochrona.
+    legend: bool, default False
+            Indica si se quiere graficar la leyenda.
 
     Returns
     -------
@@ -204,10 +221,10 @@ def cmd_with_cluster(
     """
     fig = None
     if ax is None:
-        fig, ax = plt.subplots(figsize=(15, 6))
+        fig, ax = plt.subplots(figsize=figsize)
     ax.scatter(
         x=df_catalog[color_field],
-        y=df_catalog[magnitud_field],
+        y=df_catalog[mag_field],
         s=10,
         c="k",
         edgecolor="none",
@@ -223,7 +240,7 @@ def cmd_with_cluster(
         mask_i = labels == label
         ax.scatter(
             x=df_catalog.loc[mask_i, color_field],
-            y=df_catalog.loc[mask_i, magnitud_field],
+            y=df_catalog.loc[mask_i, mag_field],
             s=10,
             edgecolor="none",
             alpha=0.4,
@@ -232,21 +249,22 @@ def cmd_with_cluster(
 
     if isinstance(df_isochrone, pd.DataFrame):
         df_is_fit = fit_isochrone(
-            df_isochrone, isochrone_distance_module, isochrone_redding, color_field, magnitud_field
+            df_isochrone, isochrone_distance_module, isochrone_redding, color_field, mag_field
         )
         ax.scatter(
             x=df_is_fit[color_field],
-            y=df_is_fit[magnitud_field],
-            s=10,
-            c="b",
+            y=df_is_fit[mag_field],
+            s=15,
             edgecolor="none",
-            alpha=0.5,
+            label="Isocrona",
         )
 
     # Etiquetas de los ejes
     ax.set_xlabel(color_field)
-    ax.set_ylabel(magnitud_field)
+    ax.set_ylabel(mag_field)
     ax.invert_yaxis()
+    if legend:
+        ax.legend()
     return fig, ax
 
 
@@ -255,8 +273,8 @@ def fit_isochrone(
     isochrone: pd.DataFrame,
     distance_module: float,
     redding: float,
-    color_field: str = "bp_rp",
-    magnitud_field: str = "phot_g_mean_mag",
+    color_field: str = BP_RP,
+    magnitud_field: str = G_MAG,
 ) -> pd.DataFrame:
     """
     Función que calcula los datos de la isochrona ajustando el módulo de distancia o el
@@ -292,8 +310,8 @@ def target_function(
     params: tuple[float, float],
     stars: pd.DataFrame,
     isochrone: pd.DataFrame,
-    color_field: str = "bp_rp",
-    magnitud_field: str = "phot_g_mean_mag",
+    color_field: str = BP_RP,
+    magnitud_field: str = G_MAG,
 ):
     """
     Función que calcula la media de distancias de la isochrona ajustada al catálogo de estrellas
@@ -332,8 +350,8 @@ def target_function(
 def get_best_isochrone_fitted(
     stars: pd.DataFrame,
     isochrone: pd.DataFrame,
-    color_field: str = "bp_rp",
-    magnitud_field: str = "phot_g_mean_mag",
+    color_field: str = BP_RP,
+    magnitud_field: str = G_MAG,
 ) -> tuple[float, float]:
     """
 
@@ -470,6 +488,116 @@ def cluster_representation_with_hvs(
     # Etiquetas y detalles
     ax.set_xlabel("l (Galactic Longitude)")
     ax.set_ylabel("b (Galactic Latitude)")
+    if legend:
+        ax.legend()
+    return fig, ax
+
+
+def cluster_representation(
+    df_gc: pd.DataFrame,
+    df_highlights_stars: Optional[pd.DataFrame] = None,
+    df_source_x: Optional[pd.DataFrame] = None,
+    factor_size: int = 200,
+    ax: Optional[plt.Axes] = None,
+    legend: bool = True,
+    figsize: tuple[int, int] = (8, 5),
+) -> tuple[plt.Figure, plt.Axes]:
+    """
+    Función que representa el cluster en coordenadas galacticas y con los vectores
+    de proper motion. Si se le indica pinta la fuente de rayos X y estrellas a destacar.
+
+    Parameters
+    ----------
+    df_gc: pd.DataFrame
+        Catalogo de estrellas del cluster
+    df_highlights_stars: pd.DataFrame
+        Catálogo de estrellas que se quieren destacar
+    df_source_x: Optional[pd.DataFrame], None
+        Si se indica tabla con las fuentes de rayos X a representar.
+    factor_size: int = 200,
+        Controla el tamaño de los vectores.
+    ax: Optional[plt.Axes] = None,
+        Axis donde se quiere pintar la gráfica.
+    legend: bool, default True
+            Indica si se quiere graficar la leyenda.
+
+    Returns
+    -------
+    fig: Figure
+        Figura con la representación en coordenadas galactics
+    ax: Axes
+        Eje de la figura.
+    """
+    if not isinstance(df_highlights_stars, pd.DataFrame):
+        df_highlights_stars = pd.DataFrame()
+
+    fig = None
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize)
+        is_wcs = False
+    else:
+        # Heurística sencilla para saber si es un eje WCS
+        is_wcs = hasattr(ax, "get_transform") and hasattr(ax, "coords")
+
+    tr = ax.transData
+    if is_wcs:
+        tr = ax.get_transform("galactic")
+        lon = ax.coords[0]
+        lat = ax.coords[1]
+        lon.set_format_unit(u.deg, decimal=True)
+        lat.set_format_unit(u.deg, decimal=True)
+        lon.set_axislabel("l (Galactic Longitude)")
+        lat.set_axislabel("b (Galactic Latitude)")
+
+    mean_pm_l = df_gc[PM_G_LONGITUDE].mean()
+    mean_pm_b = df_gc[PM_G_LATITUDE].mean()
+
+    ax.scatter(
+        df_gc[G_LONGITUDE] * u.deg,
+        df_gc[G_LATITUDE] * u.deg,
+        s=1,
+        color="grey",
+        alpha=0.5,
+        transform=tr,
+    )
+    ax.quiver(
+        df_gc[G_LONGITUDE] * u.deg,
+        df_gc[G_LATITUDE] * u.deg,
+        (df_gc[PM_G_LONGITUDE] - mean_pm_l) / factor_size,
+        (df_gc[PM_G_LATITUDE] - mean_pm_b) / factor_size,
+        color="grey",
+        scale=5,
+        width=0.003,
+        transform=tr,
+    )
+
+    if not df_highlights_stars.empty:
+        ax.quiver(
+            df_highlights_stars[G_LONGITUDE] * u.deg,
+            df_highlights_stars[G_LATITUDE] * u.deg,
+            (df_highlights_stars[PM_G_LONGITUDE] - mean_pm_l) / factor_size,
+            (df_highlights_stars[PM_G_LATITUDE] - mean_pm_b) / factor_size,
+            color="blue",
+            scale=5,
+            width=0.003,
+            label="Pre-selected Stars",
+            transform=tr,
+        )
+
+    if isinstance(df_source_x, pd.DataFrame):
+        ax.scatter(
+            df_source_x.lii.values * u.deg,
+            df_source_x.bii.values * u.deg,
+            marker="s",
+            s=20,
+            color="k",
+            label="XR_Source",
+            transform=tr,
+        )
+
+    if not is_wcs:
+        ax.set_xlabel("l (Galactic Longitude)")
+        ax.set_ylabel("b (Galactic Latitude)")
     if legend:
         ax.legend()
     return fig, ax

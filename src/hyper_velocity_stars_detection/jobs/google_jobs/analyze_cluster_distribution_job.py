@@ -8,9 +8,12 @@ import pandas as pd
 from google.cloud import storage
 from tqdm import tqdm
 
-from hyper_velocity_stars_detection.astrobjects import AstroObjectProject
-from hyper_velocity_stars_detection.jobs.google_jobs.utils import download_from_gcs, load_project
-from hyper_velocity_stars_detection.jobs.utils import ProjectDontExist, read_catalog_file
+from hyper_velocity_stars_detection.globular_clusters import GlobularClusterAnalysis
+from hyper_velocity_stars_detection.jobs.google_jobs.utils import load_globular_cluster
+from hyper_velocity_stars_detection.jobs.utils import (
+    ProjectDontExist,
+    read_clusters_harris_catalog,
+)
 from hyper_velocity_stars_detection.tools.stadistics_utils import is_multivariate_normality
 
 
@@ -29,11 +32,11 @@ def get_params(argv: list[str]) -> argparse.Namespace:
         Argumentos.
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument("--path", default="data/globular_clusters/")
+    parser.add_argument("--path", default="report/gc_clusters/")
     return parser.parse_args(argv)
 
 
-def get_project_from_cluster(cluster_name: str, path: str) -> AstroObjectProject | None:
+def get_project_from_cluster(cluster_name: str, path: str) -> GlobularClusterAnalysis | None:
     """
     Función que extrae en el caso de que corresponda las estrellas del cúmulo globular
     encontrado por el método.
@@ -47,14 +50,14 @@ def get_project_from_cluster(cluster_name: str, path: str) -> AstroObjectProject
 
     Returns
     -------
-    project: AstroObjectProject | None
+    project: GlobularClusterAnalysis | None
         Si se detecta que el cúmulo globular ha sido estudiado se devuelve el
         proyecto seleccionado. En caso contrario devuelve None.
     """
     project = None
     if cluster_name in selected_clusters:
         try:
-            project = load_project(
+            project = load_globular_cluster(
                 cluster_name=cluster_name,
                 project_id=os.getenv("PROJECT_ID"),
                 bucket_name=os.getenv("BUCKET"),
@@ -74,8 +77,7 @@ if __name__ == "__main__":
     project_id = os.getenv("PROJECT_ID")
     bucket_name = os.getenv("BUCKET")
 
-    cluster_catalog = download_from_gcs(project_id, bucket_name, "mwgc.dat.txt", args.path)
-    selected_clusters = read_catalog_file(cluster_catalog)
+    selected_clusters = read_clusters_harris_catalog()
     selected_clusters = [cl.name for cl in selected_clusters]
 
     cluster_analyze = pd.DataFrame(
@@ -83,44 +85,41 @@ if __name__ == "__main__":
     )
 
     columns_params = {
-        "5p": ["ra", "dec", "pmra", "pmdec", "parallax_corrected"],
-        "3p": ["pmra", "pmdec", "parallax_corrected"],
-        "5p_color": ["pmra", "pmdec", "parallax_corrected", "bp_rp", "phot_g_mean_flux"],
-        "7p": ["ra", "dec", "pmra", "pmdec", "parallax_corrected", "bp_rp", "phot_g_mean_flux"],
+        "5p": ["ra", "dec", "pmra", "pmdec", "parallax"],
+        "3p": ["pmra", "pmdec", "parallax"],
+        "5p_color": ["pmra", "pmdec", "parallax", "bp_rp", "phot_g_mean_flux"],
+        "7p": ["ra", "dec", "pmra", "pmdec", "parallax", "bp_rp", "phot_g_mean_flux"],
     }
 
     pos_table = 0
     for cluster_name in tqdm(
         selected_clusters, desc="Procesando clusters", unit="item", total=len(selected_clusters)
     ):
-        with TemporaryDirectory() as temp_path:
-            project = get_project_from_cluster(cluster_name, temp_path)
-            if project is None:
-                logging.info("El proyecto %s no existe." % cluster_name)
-            else:
-                data_name = "df_1_c2"
-                if project.get_data(data_name).shape[0] < 16000:
-                    data_name = "df_1_c0"
-                df_stars = project.data_list[0].data[data_name]
-                df_stars = df_stars[~df_stars[columns_params.get("7p")].isna()]
-                if df_stars.shape[0] > 3:
-                    for key, columns in columns_params.items():
-                        logging.info("-- Procesando %s: %s." % (cluster_name, key))
-                        columns_to_clus = columns_params.get(key)
-                        results = is_multivariate_normality(
-                            df_stars[columns_to_clus], max_sample=5000
-                        )
-                        cluster_analyze.loc[pos_table] = pd.Series(
-                            {
-                                "name": cluster_name,
-                                "columns": key,
-                                "statistic_name": results.statistic_name,
-                                "statistic": results.statistic,
-                                "pval": results.pval,
-                                "is_normal": results.is_multivariate_normal,
-                            }
-                        )
-                        pos_table += 1
+        project = get_project_from_cluster(cluster_name, args.path)
+        if project is None:
+            logging.info("El proyecto %s no existe." % cluster_name)
+        else:
+            data_name = "df_1_c2"
+            if project.astro_data.get_data(data_name).shape[0] < 16000:
+                data_name = "df_1_c0"
+            df_stars = project.astro_data.get_data(data_name)
+            df_stars = df_stars[~df_stars[columns_params.get("7p")].isna()]
+            if df_stars.shape[0] > 3:
+                for key, columns in columns_params.items():
+                    logging.info("-- Procesando %s: %s." % (cluster_name, key))
+                    columns_to_clus = columns_params.get(key)
+                    results = is_multivariate_normality(df_stars[columns_to_clus], max_sample=5000)
+                    cluster_analyze.loc[pos_table] = pd.Series(
+                        {
+                            "name": cluster_name,
+                            "columns": key,
+                            "statistic_name": results.statistic_name,
+                            "statistic": results.statistic,
+                            "pval": results.pval,
+                            "is_normal": results.is_multivariate_normal,
+                        }
+                    )
+                    pos_table += 1
 
     with TemporaryDirectory() as temp_path:
         file_name = "cluster_analyze_distribution.csv"

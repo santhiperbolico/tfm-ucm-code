@@ -1,10 +1,17 @@
 import logging
 import os
+from tempfile import TemporaryDirectory
 
 from google.cloud import storage
 
-from hyper_velocity_stars_detection.astrobjects import AstroObjectProject
+from hyper_velocity_stars_detection.globular_clusters import GlobularClusterAnalysis
 from hyper_velocity_stars_detection.jobs.utils import ProjectDontExist
+from hyper_velocity_stars_detection.sources.source import AstroMetricData
+from hyper_velocity_stars_detection.sources.utils import get_main_id
+from hyper_velocity_stars_detection.variables_names import (
+    ASTRO_OBJECT_DATA,
+    GLOBULAR_CLUSTER_ANALYSIS,
+)
 
 
 def upload_folder_to_gcs(project_id, bucket_name, temp_path, destination_folder):
@@ -37,7 +44,7 @@ def upload_folder_to_gcs(project_id, bucket_name, temp_path, destination_folder)
         # Verificar que sea un archivo y no un directorio
         if os.path.isfile(file_path):
             # Definir la ruta en el bucket
-            blob_path = f"{destination_folder}/{file_name}"
+            blob_path = os.path.join(destination_folder, file_name)
             blob = bucket.blob(blob_path)
             # Subir el archivo
             blob.upload_from_filename(file_path)
@@ -72,9 +79,9 @@ def download_from_gcs(project_id: str, bucket_name: str, file_path: str, path: s
     return local_path
 
 
-def load_project(
+def load_globular_cluster(
     cluster_name: str, project_id: str, bucket_name: str, path: str
-) -> AstroObjectProject:
+) -> GlobularClusterAnalysis:
     """
     Función que descarga o carga desde la cache los datos limpios en un proyecto.
 
@@ -87,23 +94,67 @@ def load_project(
     bucket_name: str
         Nombre del bucket de Storage.
     path: str
-        Ruta donde queremos guardar los datos.
+        Directorio donde se encuentra el objeto en storage.
 
     Returns
     -------
-    project: AstroObjectProject
+    gc_object: GlobularClusterAnalysis
         Proyecto donde se guardan los resultados.
     """
     client = storage.Client(project=project_id)
     bucket = client.bucket(bucket_name)
+    main_id = get_main_id(cluster_name)
 
-    logging.info(f"Procesando elemento {cluster_name}")
-
-    file_path = f"{cluster_name}.zip"
+    logging.info(f"Cargando objeto {main_id}")
+    file_name = f"{GLOBULAR_CLUSTER_ANALYSIS}_{main_id}.zip"
+    file_path = os.path.join(path, file_name)
     blob = bucket.blob(blob_name=file_path)
     if blob.exists():
-        blob.download_to_filename(os.path.join(path, file_path))
-        project = AstroObjectProject.load_project(cluster_name, path, True)
-        return project
+        with TemporaryDirectory() as temp_path:
+            temp_file = os.path.join(temp_path, file_name)
+            blob.download_to_filename(temp_file)
+            gc_object = GlobularClusterAnalysis.load(temp_file)
+        return gc_object
 
     raise ProjectDontExist("No hay datos descargados del proyecto")
+
+
+def load_astrometric_data(
+    cluster_name: str, catalog_name: str, project_id: str, bucket_name: str, path: str, r: int
+) -> AstroMetricData:
+    """
+    Función que descarga o carga desde la cache los datos limpios en un proyecto.
+
+    Parameters
+    ----------
+    cluster_name: str,
+        Nombre del cluster
+    catalog_name: str
+        Nombre del catálogo usado
+    project_id: str
+        ID del proyecto de GCP
+    bucket_name: str
+        Nombre del bucket de Storage.
+    path: str
+        Directorio donde se encuentra el objeto en storage.
+
+    Returns
+    -------
+    astro_data: AstroMetricData
+        Datos astrométricos.
+    """
+    client = storage.Client(project=project_id)
+    bucket = client.bucket(bucket_name)
+
+    logging.info(f"Cargando objeto {cluster_name}")
+    file_name = f"{ASTRO_OBJECT_DATA}_{catalog_name}_{cluster_name}_r_{r}.zip"
+    file_path = os.path.join(path, file_name)
+    blob = bucket.blob(blob_name=file_path)
+    if blob.exists():
+        with TemporaryDirectory() as temp_path:
+            temp_file = os.path.join(temp_path, file_name)
+            blob.download_to_filename(temp_file)
+            astro_data = AstroMetricData.load(temp_file)
+        return astro_data
+
+    raise ProjectDontExist("No hay datos astrométricos descargados")

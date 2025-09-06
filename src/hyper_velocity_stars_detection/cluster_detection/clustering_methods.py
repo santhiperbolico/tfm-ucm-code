@@ -5,6 +5,8 @@ from attr import attrs
 from sklearn.cluster import DBSCAN, HDBSCAN, AgglomerativeClustering, KMeans
 from sklearn.mixture import GaussianMixture
 
+from hyper_velocity_stars_detection.default_variables import MAX_CLUSTER_DEFAULT
+
 
 class GaussianMixtureClustering:
     """
@@ -23,7 +25,6 @@ class GaussianMixtureClustering:
 
 
 ClusterMethods = Type[DBSCAN | KMeans | HDBSCAN | GaussianMixtureClustering]
-MAX_CLUSTER_DEFAULT = 10
 
 
 class ClusterMethodsNames:
